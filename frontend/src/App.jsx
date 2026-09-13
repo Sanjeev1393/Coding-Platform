@@ -1,59 +1,89 @@
-const question = {
-  number: 1,
-  title: "Two Sum",
-  description:
-    "Given an array of integers and a target, return the indices of two numbers whose sum is equal to the target.",
-  sampleInput: "numbers = [2, 7, 11, 15], target = 9",
-  sampleOutput: "[0, 1]",
-};
-
-const INITIAL_CODE = `public class Main {
-    public static void main(String[] args) {
-        // Write your code here
-    }
-}`;
+import { useEffect, useState } from "react";
+import {
+  ASSESSMENT_DURATION_SECONDS,
+  INITIAL_CODE,
+  question,
+} from "./constants";
+import AssessmentHeader from "./components/AssessmentHeader";
+import QuestionPanel from "./components/QuestionPanel";
+import OutputPanel from "./components/OutputPanel";
+import ConfirmDialog from "./components/ConfirmDialog";
 
 function App() {
+  const [code, setCode] = useState(INITIAL_CODE);
+  const [timeLeft, setTimeLeft] = useState(ASSESSMENT_DURATION_SECONDS);
+  const [isRunning, setIsRunning] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState("");
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
+  useEffect(() => {
+    if (timeLeft <= 0) return;
+
+    const timerId = setTimeout(() => {
+      setTimeLeft((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearTimeout(timerId);
+  }, [timeLeft]);
+
+  const minutes = Math.floor(timeLeft / 60);
+  const seconds = timeLeft % 60;
+  const formattedTime = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+  const handleRunCode = () => {
+    if (code.trim() === "") {
+      setResult(null);
+      setError("Editor is empty. Please write your solution before running.");
+      return;
+    }
+
+    setIsRunning(true);
+    setResult(null);
+    setError("");
+
+    // Simulate ~1 second of "compilation / execution"
+    setTimeout(() => {
+      setResult({ status: "Passed", testCases: "2 / 2", output: "[0, 1]" });
+      setIsRunning(false);
+    }, 1000);
+  };
+
+  const handleSubmitClick = () => {
+    if (code.trim() === "") {
+      setError("Editor is empty. Please write your solution before submitting.");
+      return;
+    }
+    setError("");
+    setShowConfirmDialog(true);
+  };
+
+  const handleConfirmSubmit = () => {
+    setShowConfirmDialog(false);
+    setIsSubmitted(true);
+  };
+
+  const handleCancelSubmit = () => {
+    setShowConfirmDialog(false);
+  };
+
+  // Disable all interaction once submitted or while code is running
+  const isLocked = isSubmitted || isRunning;
+
   return (
     <main className="flex min-h-screen flex-col bg-slate-100 text-slate-800">
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-8 py-5">
-        <div>
-          <h1 className="text-2xl font-bold">Coding Assessment</h1>
-          <p className="mt-1 text-slate-500">Java Programming Test</p>
-        </div>
+      <AssessmentHeader formattedTime={formattedTime} />
 
-        <div className="rounded-md bg-blue-50 px-5 py-2.5 text-xl font-semibold text-blue-700 tabular-nums">
-          30:00
-        </div>
-      </header>
+      {showConfirmDialog && (
+        <ConfirmDialog
+          onConfirm={handleConfirmSubmit}
+          onCancel={handleCancelSubmit}
+        />
+      )}
 
       <div className="grid flex-1 grid-cols-1 md:grid-cols-5">
-        <section className="border-b border-slate-200 bg-white p-7 md:col-span-2 md:border-b-0 md:border-r">
-          <p className="font-semibold text-blue-700">
-            Question {question.number} of 2
-          </p>
-
-          <h2 className="mt-2 text-2xl font-bold text-slate-900">
-            {question.title}
-          </h2>
-          <p className="mt-2 leading-relaxed text-slate-600">
-            {question.description}
-          </p>
-
-          <h3 className="mt-7 mb-2 text-[15px] font-semibold text-slate-900">
-            Sample input
-          </h3>
-          <pre className="rounded-md bg-slate-100 p-3.5 font-mono text-sm whitespace-pre-wrap text-slate-800">
-            {question.sampleInput}
-          </pre>
-
-          <h3 className="mt-7 mb-2 text-[15px] font-semibold text-slate-900">
-            Sample output
-          </h3>
-          <pre className="rounded-md bg-slate-100 p-3.5 font-mono text-sm whitespace-pre-wrap text-slate-800">
-            {question.sampleOutput}
-          </pre>
-        </section>
+        <QuestionPanel question={question} />
 
         <section className="flex flex-col p-7 md:col-span-3">
           <div className="flex items-center justify-between">
@@ -64,23 +94,42 @@ function App() {
           </div>
 
           <textarea
-            className="mt-4 min-h-[400px] flex-1 resize-y rounded-md border border-slate-400 bg-gray-900 p-4 font-mono text-[15px] leading-relaxed text-gray-50 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-            defaultValue={INITIAL_CODE}
+            className="mt-4 min-h-[400px] flex-1 resize-y rounded-md border border-slate-400 bg-gray-900 p-4 font-mono text-[15px] leading-relaxed text-gray-50 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
             spellCheck={false}
             aria-label="Code editor"
+            disabled={isSubmitted}
           />
+
+          {isSubmitted ? (
+            <div className="mt-4 rounded-md border border-green-200 bg-green-50 p-4">
+              <p className="font-semibold text-green-700">
+                ✓ Solution submitted successfully.
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                Your code has been recorded. You may close this window.
+              </p>
+            </div>
+          ) : (
+            <OutputPanel result={result} error={error} />
+          )}
 
           <div className="mt-4.5 flex justify-end gap-3">
             <button
               type="button"
-              className="cursor-pointer rounded-md bg-gray-200 px-4.5 py-2.5 font-semibold text-gray-800 transition hover:bg-gray-300"
+              onClick={handleRunCode}
+              disabled={isLocked}
+              className="cursor-pointer rounded-md bg-gray-200 px-4.5 py-2.5 font-semibold text-gray-800 transition hover:bg-gray-300 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Run code
+              {isRunning ? "Running…" : "Run code"}
             </button>
 
             <button
               type="button"
-              className="cursor-pointer rounded-md bg-blue-600 px-4.5 py-2.5 font-semibold text-white transition hover:bg-blue-700"
+              onClick={handleSubmitClick}
+              disabled={isLocked}
+              className="cursor-pointer rounded-md bg-blue-600 px-4.5 py-2.5 font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Submit solution
             </button>

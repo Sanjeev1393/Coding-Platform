@@ -1,0 +1,29 @@
+function OutputPanel({ result, error }) {
+  if (!result && !error) return null;
+
+  if (error) {
+    return (
+      <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-4">
+        <p className="text-sm font-semibold text-red-700">Validation error</p>
+        <p className="mt-1 text-sm text-red-600">{error}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-md border border-green-200 bg-green-50 p-4">
+      <p className="text-sm font-semibold text-green-700">
+        ✓ {result.status} — {result.testCases} test cases passed
+      </p>
+      <p className="mt-2 text-sm text-slate-600">Output</p>
+      <pre className="mt-1 rounded-md bg-white px-3 py-2 font-mono text-sm text-slate-800">
+        {result.output}
+      </pre>
+      <p className="mt-3 text-xs text-slate-400">
+        ⚠ Mock result — compiler not connected yet
+      </p>
+    </div>
+  );
+}
+
+export default OutputPanel;
