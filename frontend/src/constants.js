@@ -28,5 +28,3 @@ export const questions = [
 }`,
   },
 ];
-
-export const INITIAL_CODE = questions[0].starterCode;

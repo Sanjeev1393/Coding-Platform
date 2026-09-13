@@ -1,16 +1,27 @@
-function OutputPanel({ result, error, isRunning = false }) {
-  void isRunning;
+import StatusBanner from "./StatusBanner";
 
-  if (!result && !error) return null;
+function OutputPanel({ result, error, isRunning = false }) {
+  if (isRunning) {
+    return (
+      <StatusBanner
+        variant="info"
+        title="Executing code…"
+        message="Running test cases against your solution."
+      />
+    );
+  }
 
   if (error) {
     return (
-      <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-4">
-        <p className="text-sm font-semibold text-red-700">Validation error</p>
-        <p className="mt-1 text-sm text-red-600">{error}</p>
-      </div>
+      <StatusBanner
+        variant="error"
+        title="Validation error"
+        message={error}
+      />
     );
   }
+
+  if (!result) return null;
 
   return (
     <div className="mt-4 rounded-md border border-green-200 bg-green-50 p-4">
