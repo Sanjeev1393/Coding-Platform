@@ -1,4 +1,6 @@
-function OutputPanel({ result, error }) {
+function OutputPanel({ result, error, isRunning = false }) {
+  void isRunning;
+
   if (!result && !error) return null;
 
   if (error) {
