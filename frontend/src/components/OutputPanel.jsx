@@ -24,7 +24,11 @@ function OutputPanel({ result, error, isRunning = false }) {
   if (!result) return null;
 
   return (
-    <div className="mt-4 rounded-md border border-green-200 bg-green-50 p-4">
+    <div
+      role="region"
+      aria-label="Execution result"
+      className="mt-4 rounded-md border border-green-200 bg-green-50 p-4"
+    >
       <p className="text-sm font-semibold text-green-700">
         ✓ {result.status} — {result.testCases} test cases passed
       </p>

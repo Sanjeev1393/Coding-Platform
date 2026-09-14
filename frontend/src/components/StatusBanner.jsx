@@ -21,11 +21,22 @@ const variantStyles = {
   },
 };
 
-function StatusBanner({ variant = "info", title, message, children }) {
+const roleByVariant = {
+  error: "alert",
+  info: "status",
+  warning: "status",
+  success: "status",
+};
+
+function StatusBanner({ role, variant = "info", title, message, children }) {
   const styles = variantStyles[variant] || variantStyles.info;
+  const resolvedRole = role ?? roleByVariant[variant];
 
   return (
-    <div className={`mt-4 rounded-md border p-4 ${styles.container}`}>
+    <div
+      role={resolvedRole}
+      className={`mt-4 rounded-md border p-4 ${styles.container}`}
+    >
       {title && <p className={`font-semibold ${styles.title}`}>{title}</p>}
       {message && <p className={`mt-1 text-sm ${styles.message}`}>{message}</p>}
       {children}

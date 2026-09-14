@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { formatTime } from "../utils/formatTime";
 
 export function useAssessmentTimer(initialDurationSeconds) {
   const [timeLeft, setTimeLeft] = useState(initialDurationSeconds);
@@ -13,13 +14,9 @@ export function useAssessmentTimer(initialDurationSeconds) {
     return () => clearTimeout(timerId);
   }, [timeLeft]);
 
-  const minutes = Math.floor(timeLeft / 60);
-  const seconds = timeLeft % 60;
-  const formattedTime = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-
   return {
     timeLeft,
-    formattedTime,
+    formattedTime: formatTime(timeLeft),
     isTimeUp: timeLeft <= 0,
     isUrgent: timeLeft <= 5 * 60 && timeLeft > 0,
   };
