@@ -250,8 +250,9 @@ describe("App — full assessment flow", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Run code" }));
 
-      // Loading state
+      // Loading state: action button is running and editor is locked (disabled)
       expect(screen.getByRole("button", { name: "Running…" })).toBeDisabled();
+      expect(screen.getByRole("textbox", { name: "Code editor" })).toBeDisabled();
       expect(screen.getByText("Executing code…")).toBeInTheDocument();
 
       // Fast-forward mock 1s execution

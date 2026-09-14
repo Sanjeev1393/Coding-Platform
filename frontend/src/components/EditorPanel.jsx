@@ -1,5 +1,8 @@
+import CodeEditor from "./CodeEditor";
+
 function EditorPanel({
   code,
+  questionId,
   onCodeChange,
   onRunCode,
   onSubmit,
@@ -16,14 +19,21 @@ function EditorPanel({
         </span>
       </div>
 
-      <textarea
-        className="mt-4 min-h-[400px] flex-1 resize-y rounded-md border border-slate-400 bg-gray-900 p-4 font-mono text-[15px] leading-relaxed text-gray-50 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-        value={code}
-        onChange={(e) => onCodeChange?.(e.target.value)}
-        spellCheck={false}
-        aria-label="Code editor"
-        disabled={isLocked}
-      />
+      <div
+        className={`mt-4 min-h-[420px] flex-1 overflow-hidden rounded-md border shadow-sm transition-opacity ${
+          isLocked
+            ? "border-slate-800 bg-gray-950/80 opacity-75 cursor-not-allowed"
+            : "border-slate-700 bg-gray-900"
+        }`}
+      >
+        <CodeEditor
+          value={code}
+          onChange={onCodeChange}
+          language="java"
+          questionId={questionId}
+          readOnly={isLocked}
+        />
+      </div>
 
       {children}
 

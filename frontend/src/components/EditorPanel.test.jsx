@@ -123,6 +123,14 @@ describe("EditorPanel", () => {
       expect(screen.getByRole("button", { name: "Submit solution" })).toBeDisabled();
     });
 
+    test("editor and action buttons are locked while code execution is running (isRunning=true, isLocked=true)", () => {
+      renderEditor({ isRunning: true, isLocked: true });
+
+      expect(screen.getByRole("textbox", { name: "Code editor" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Running…" })).toBeDisabled();
+      expect(screen.getByRole("button", { name: "Submit solution" })).toBeDisabled();
+    });
+
     test("textarea is findable by its accessible label 'Code editor'", () => {
       renderEditor();
 
@@ -208,7 +216,6 @@ describe("EditorPanel", () => {
 
       await user.tab();
       expect(editor).toHaveFocus();
-      expect(editor.className).toMatch(/focus:ring-2/);
 
       await user.tab();
       expect(runBtn).toHaveFocus();
@@ -217,6 +224,12 @@ describe("EditorPanel", () => {
       await user.tab();
       expect(submitBtn).toHaveFocus();
       expect(submitBtn.className).toMatch(/focus-visible:ring-2/);
+    });
+
+    test("passes questionId to configure unique Monaco model path", () => {
+      renderEditor({ questionId: "two-sum" });
+      const editor = screen.getByRole("textbox", { name: "Code editor" });
+      expect(editor).toHaveAttribute("data-path", "question-two-sum.java");
     });
   });
 });

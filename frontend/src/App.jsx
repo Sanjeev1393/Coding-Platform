@@ -60,7 +60,7 @@ function App() {
   };
 
   const handleCodeChange = (newCode) => {
-    if (!currentQuestion) return;
+    if (isLocked || !currentQuestion) return;
 
     setSolutionsByQuestionId((prevSolutions) => ({
       ...prevSolutions,
@@ -142,6 +142,7 @@ function App() {
 
           <EditorPanel
             code={currentCode}
+            questionId={currentQuestion?.id}
             onCodeChange={handleCodeChange}
             onRunCode={handleRunCode}
             onSubmit={handleSubmitClick}
