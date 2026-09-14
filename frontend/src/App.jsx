@@ -1,5 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { ASSESSMENT_DURATION_SECONDS, questions } from "./constants";
+import {
+  ASSESSMENT_DURATION_SECONDS,
+  SUPPORTED_LANGUAGES,
+  questions,
+} from "./constants";
+import {
+  getStarterCode,
+  buildQuestionLanguageKey,
+} from "./utils/languageUtils";
 import { useAssessmentTimer } from "./hooks/useAssessmentTimer";
 import AssessmentHeader from "./components/AssessmentHeader";
 import QuestionPanel from "./components/QuestionPanel";
@@ -11,9 +19,8 @@ import EmptyAssessment from "./components/EmptyAssessment";
 
 function App() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [solutionsByQuestionId, setSolutionsByQuestionId] = useState(() =>
-    Object.fromEntries(questions.map((q) => [q.id, q.starterCode]))
-  );
+  const [selectedLanguage, setSelectedLanguage] = useState("java");
+  const [solutionsByKey, setSolutionsByKey] = useState({});
   const [isRunning, setIsRunning] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -41,7 +48,19 @@ function App() {
   const currentQuestion = questions[currentQuestionIndex] ?? null;
   const isFirstQuestion = currentQuestionIndex === 0;
   const isLastQuestion = currentQuestionIndex === questions.length - 1;
-  const currentCode = currentQuestion ? (solutionsByQuestionId[currentQuestion.id] ?? "") : "";
+
+  const currentKey = currentQuestion
+    ? buildQuestionLanguageKey(currentQuestion.id, selectedLanguage)
+    : "";
+  const currentCode = currentQuestion
+    ? (solutionsByKey[currentKey] ??
+      getStarterCode(currentQuestion, selectedLanguage))
+    : "";
+
+  const activeLanguageConfig = SUPPORTED_LANGUAGES.find(
+    (lang) => lang.id === selectedLanguage
+  );
+  const activeLanguageName = activeLanguageConfig?.name || selectedLanguage;
 
   const handlePreviousQuestion = () => {
     if (currentQuestionIndex > 0) {
@@ -59,12 +78,19 @@ function App() {
     }
   };
 
+  const handleLanguageChange = (newLanguage) => {
+    if (isLocked) return;
+    setSelectedLanguage(newLanguage);
+    setResult(null);
+    setError("");
+  };
+
   const handleCodeChange = (newCode) => {
     if (isLocked || !currentQuestion) return;
 
-    setSolutionsByQuestionId((prevSolutions) => ({
-      ...prevSolutions,
-      [currentQuestion.id]: newCode,
+    setSolutionsByKey((prev) => ({
+      ...prev,
+      [buildQuestionLanguageKey(currentQuestion.id, selectedLanguage)]: newCode,
     }));
   };
 
@@ -83,7 +109,12 @@ function App() {
 
     // Simulate ~1 second of "compilation / execution" safely
     runTimeoutRef.current = setTimeout(() => {
-      setResult({ status: "Passed", testCases: "2 / 2", output: "[0, 1]" });
+      setResult({
+        status: "Passed",
+        testCases: "2 / 2",
+        output: "[0, 1]",
+        language: activeLanguageName,
+      });
       setIsRunning(false);
     }, 1000);
   };
@@ -143,6 +174,8 @@ function App() {
           <EditorPanel
             code={currentCode}
             questionId={currentQuestion?.id}
+            selectedLanguage={selectedLanguage}
+            onLanguageChange={handleLanguageChange}
             onCodeChange={handleCodeChange}
             onRunCode={handleRunCode}
             onSubmit={handleSubmitClick}
@@ -153,7 +186,7 @@ function App() {
               <StatusBanner
                 variant="success"
                 title="✓ Solution submitted successfully."
-                message="Your code has been recorded. You may close this window."
+                message={`Your ${activeLanguageName} solution has been recorded. You may close this window.`}
               />
             ) : isTimeUp ? (
               <StatusBanner
@@ -162,7 +195,13 @@ function App() {
                 message="The assessment time is up. Code editing and execution have been disabled."
               />
             ) : (
-              <OutputPanel result={result} error={error} isRunning={isRunning} />
+              <OutputPanel
+                result={result}
+                error={error}
+                isRunning={isRunning}
+                languageName={activeLanguageName}
+                questionNumber={currentQuestionIndex + 1}
+              />
             )}
           </EditorPanel>
         </div>

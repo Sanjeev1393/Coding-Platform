@@ -1,6 +1,7 @@
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import App from "./App";
 import { questions as defaultQuestions } from "./constants";
+import { getStarterCode } from "./utils/languageUtils";
 
 // ─── Module Mocking ────────────────────────────────────────────────────────────
 
@@ -61,7 +62,7 @@ describe("App — full assessment flow", () => {
       expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
 
       const editor = screen.getByRole("textbox", { name: "Code editor" });
-      expect(editor).toHaveValue(defaultQuestions[0].starterCode);
+      expect(editor).toHaveValue(getStarterCode(defaultQuestions[0], "java"));
 
       expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
       expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
@@ -81,7 +82,7 @@ describe("App — full assessment flow", () => {
       expect(screen.getByText("Question 2 of 2")).toBeInTheDocument();
 
       const editor = screen.getByRole("textbox", { name: "Code editor" });
-      expect(editor).toHaveValue(defaultQuestions[1].starterCode);
+      expect(editor).toHaveValue(getStarterCode(defaultQuestions[1], "java"));
 
       expect(screen.getByRole("button", { name: "Previous" })).toBeEnabled();
       expect(screen.getByRole("button", { name: "Next" })).toBeDisabled();
@@ -100,7 +101,7 @@ describe("App — full assessment flow", () => {
       ).toBeInTheDocument();
       expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
       expect(screen.getByRole("textbox", { name: "Code editor" })).toHaveValue(
-        defaultQuestions[0].starterCode
+        getStarterCode(defaultQuestions[0], "java")
       );
     });
 
@@ -152,7 +153,7 @@ describe("App — full assessment flow", () => {
 
       // Navigate to Question 2
       fireEvent.click(screen.getByRole("button", { name: "Next" }));
-      expect(editor).toHaveValue(defaultQuestions[1].starterCode);
+      expect(editor).toHaveValue(getStarterCode(defaultQuestions[1], "java"));
 
       // Edit Question 2 code
       fireEvent.change(editor, {
@@ -316,7 +317,7 @@ describe("App — full assessment flow", () => {
       ).toBeInTheDocument();
       expect(
         screen.getByText(
-          "Your code has been recorded. You may close this window."
+          "Your Java solution has been recorded. You may close this window."
         )
       ).toBeInTheDocument();
 
@@ -468,8 +469,10 @@ describe("App — full assessment flow", () => {
       expect(nextBtn).toBeDisabled();
     });
 
-    test("expired timer: run and submit follow the expiry rule", () => {
-      render(<App />);
+    test(
+      "expired timer: run and submit follow the expiry rule",
+      () => {
+        render(<App />);
 
       // Advance clock past assessment duration (30 minutes = 1800s)
       advanceSeconds(30 * 60);
@@ -493,6 +496,223 @@ describe("App — full assessment flow", () => {
       expect(
         screen.getByRole("button", { name: "Submit solution" })
       ).toBeDisabled();
+    }, 15000);
+  });
+
+  // ─── Language selection and multi-language support ──────────────────────────
+
+  describe("language selection and multi-language support", () => {
+    test("Java is selected initially", () => {
+      render(<App />);
+
+      const langSelect = screen.getByRole("combobox", {
+        name: "Select programming language",
+      });
+      expect(langSelect).toHaveValue("java");
+
+      const editor = screen.getByRole("textbox", { name: "Code editor" });
+      expect(editor).toHaveAttribute("data-language", "java");
+      expect(editor).toHaveAttribute("data-path", "question-two-sum.java");
+    });
+
+    test("Java starter code is displayed initially", () => {
+      render(<App />);
+
+      const editor = screen.getByRole("textbox", { name: "Code editor" });
+      expect(editor).toHaveValue(getStarterCode(defaultQuestions[0], "java"));
+    });
+
+    test("selecting Python displays Python starter code", () => {
+      render(<App />);
+
+      const langSelect = screen.getByRole("combobox", {
+        name: "Select programming language",
+      });
+      fireEvent.change(langSelect, { target: { value: "python" } });
+
+      expect(langSelect).toHaveValue("python");
+      const editor = screen.getByRole("textbox", { name: "Code editor" });
+      expect(editor).toHaveValue(getStarterCode(defaultQuestions[0], "python"));
+      expect(editor).toHaveAttribute("data-language", "python");
+      expect(editor).toHaveAttribute("data-path", "question-two-sum.py");
+    });
+
+    test("selecting JavaScript displays JavaScript starter code", () => {
+      render(<App />);
+
+      const langSelect = screen.getByRole("combobox", {
+        name: "Select programming language",
+      });
+      fireEvent.change(langSelect, { target: { value: "javascript" } });
+
+      expect(langSelect).toHaveValue("javascript");
+      const editor = screen.getByRole("textbox", { name: "Code editor" });
+      expect(editor).toHaveValue(
+        getStarterCode(defaultQuestions[0], "javascript")
+      );
+      expect(editor).toHaveAttribute("data-language", "javascript");
+      expect(editor).toHaveAttribute("data-path", "question-two-sum.js");
+    });
+
+    test("code written in Java is preserved after switching to Python and back", () => {
+      render(<App />);
+
+      const editor = screen.getByRole("textbox", { name: "Code editor" });
+      const langSelect = screen.getByRole("combobox", {
+        name: "Select programming language",
+      });
+
+      // Write custom Java code
+      const customJavaCode = "public class Solution { /* my custom java */ }";
+      fireEvent.change(editor, { target: { value: customJavaCode } });
+      expect(editor).toHaveValue(customJavaCode);
+
+      // Switch to Python — shows Python starter code
+      fireEvent.change(langSelect, { target: { value: "python" } });
+      expect(editor).toHaveValue(getStarterCode(defaultQuestions[0], "python"));
+
+      // Switch back to Java — custom code is preserved
+      fireEvent.change(langSelect, { target: { value: "java" } });
+      expect(editor).toHaveValue(customJavaCode);
+    });
+
+    test("each question stores its own code", () => {
+      render(<App />);
+
+      const editor = screen.getByRole("textbox", { name: "Code editor" });
+      const customQ1Code = "public class Q1 { /* q1 code */ }";
+      fireEvent.change(editor, { target: { value: customQ1Code } });
+
+      // Navigate to Question 2
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+      expect(editor).toHaveValue(getStarterCode(defaultQuestions[1], "java"));
+
+      // Edit Question 2 code
+      const customQ2Code = "public class Q2 { /* q2 code */ }";
+      fireEvent.change(editor, { target: { value: customQ2Code } });
+      expect(editor).toHaveValue(customQ2Code);
+
+      // Navigate back to Question 1 — Q1 code is preserved
+      fireEvent.click(screen.getByRole("button", { name: "Previous" }));
+      expect(editor).toHaveValue(customQ1Code);
+    });
+
+    test("each question-language combination stores separate code", () => {
+      render(<App />);
+
+      const editor = screen.getByRole("textbox", { name: "Code editor" });
+      const langSelect = screen.getByRole("combobox", {
+        name: "Select programming language",
+      });
+
+      // Q1 - Java
+      fireEvent.change(editor, { target: { value: "// Q1 Java" } });
+
+      // Q1 - Python
+      fireEvent.change(langSelect, { target: { value: "python" } });
+      fireEvent.change(editor, { target: { value: "# Q1 Python" } });
+
+      // Move to Q2
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+      // Q2 - Python (retains current language selection)
+      expect(langSelect).toHaveValue("python");
+      fireEvent.change(editor, { target: { value: "# Q2 Python" } });
+
+      // Q2 - Java
+      fireEvent.change(langSelect, { target: { value: "java" } });
+      fireEvent.change(editor, { target: { value: "// Q2 Java" } });
+
+      // Verify Q2 Java
+      expect(editor).toHaveValue("// Q2 Java");
+
+      // Verify Q2 Python
+      fireEvent.change(langSelect, { target: { value: "python" } });
+      expect(editor).toHaveValue("# Q2 Python");
+
+      // Return to Q1
+      fireEvent.click(screen.getByRole("button", { name: "Previous" }));
+
+      // Verify Q1 Python
+      expect(langSelect).toHaveValue("python");
+      expect(editor).toHaveValue("# Q1 Python");
+
+      // Verify Q1 Java
+      fireEvent.change(langSelect, { target: { value: "java" } });
+      expect(editor).toHaveValue("// Q1 Java");
+    });
+
+    test("Run uses the currently selected language", () => {
+      render(<App />);
+
+      const langSelect = screen.getByRole("combobox", {
+        name: "Select programming language",
+      });
+      fireEvent.change(langSelect, { target: { value: "python" } });
+
+      // Click Run Code
+      fireEvent.click(screen.getByRole("button", { name: "Run code" }));
+
+      // Running banner mentions Python
+      expect(
+        screen.getByText(/Running Question 1 using Python/)
+      ).toBeInTheDocument();
+
+      // Complete execution
+      act(() => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      // Result panel displays the executed language badge
+      const resultRegion = screen.getByRole("region", {
+        name: "Execution result",
+      });
+      expect(resultRegion).toBeInTheDocument();
+      expect(resultRegion).toHaveTextContent("Python");
+    });
+
+    test("Submit uses the currently selected language", () => {
+      render(<App />);
+
+      const langSelect = screen.getByRole("combobox", {
+        name: "Select programming language",
+      });
+      fireEvent.change(langSelect, { target: { value: "python" } });
+
+      // Click Submit and confirm
+      fireEvent.click(screen.getByRole("button", { name: "Submit solution" }));
+      fireEvent.click(screen.getByRole("button", { name: "Yes, submit" }));
+
+      // Submission banner mentions Python
+      expect(
+        screen.getByText(
+          "Your Python solution has been recorded. You may close this window."
+        )
+      ).toBeInTheDocument();
+    });
+
+    test("switching languages does not reset the timer", () => {
+      render(<App />);
+
+      const timerDisplay = screen.getByLabelText("Assessment countdown timer");
+      expect(timerDisplay).toHaveTextContent("30:00");
+
+      // Advance by 65 seconds (should show 28:55)
+      advanceSeconds(65);
+      expect(timerDisplay).toHaveTextContent("28:55");
+
+      // Switch language to Python
+      const langSelect = screen.getByRole("combobox", {
+        name: "Select programming language",
+      });
+      fireEvent.change(langSelect, { target: { value: "python" } });
+
+      // Timer continues from 28:55 and is not reset to 30:00
+      expect(timerDisplay).toHaveTextContent("28:55");
+
+      // Advance another 5 seconds -> 28:50
+      advanceSeconds(5);
+      expect(timerDisplay).toHaveTextContent("28:50");
     });
   });
 });

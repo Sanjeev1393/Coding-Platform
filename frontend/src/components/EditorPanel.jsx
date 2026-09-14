@@ -1,8 +1,13 @@
 import CodeEditor from "./CodeEditor";
+import LanguageSelector from "./LanguageSelector";
+import { SUPPORTED_LANGUAGES } from "../constants";
 
 function EditorPanel({
   code,
   questionId,
+  selectedLanguage = "java",
+  onLanguageChange,
+  languages = SUPPORTED_LANGUAGES,
   onCodeChange,
   onRunCode,
   onSubmit,
@@ -14,9 +19,12 @@ function EditorPanel({
     <section className="flex flex-col p-7 md:col-span-3">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-slate-900">Your solution</h2>
-        <span className="rounded-md bg-blue-50 px-3 py-1.5 text-sm font-semibold text-blue-700">
-          Java
-        </span>
+        <LanguageSelector
+          selectedLanguage={selectedLanguage}
+          onLanguageChange={onLanguageChange}
+          languages={languages}
+          disabled={isLocked}
+        />
       </div>
 
       <div
@@ -29,7 +37,7 @@ function EditorPanel({
         <CodeEditor
           value={code}
           onChange={onCodeChange}
-          language="java"
+          language={selectedLanguage}
           questionId={questionId}
           readOnly={isLocked}
         />

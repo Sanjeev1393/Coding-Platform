@@ -1,4 +1,5 @@
 import Editor from "@monaco-editor/react";
+import { getLanguageExtension } from "../utils/languageUtils";
 
 function CodeEditor({
   value,
@@ -14,7 +15,8 @@ function CodeEditor({
     onChange?.(newValue ?? "");
   };
 
-  const modelPath = questionId ? `question-${questionId}.${language === "java" ? "java" : "txt"}` : undefined;
+  const extension = getLanguageExtension(language);
+  const modelPath = questionId ? `question-${questionId}.${extension}` : undefined;
 
   return (
     <div className={`relative h-full w-full ${readOnly ? "cursor-not-allowed opacity-80" : ""}`}>

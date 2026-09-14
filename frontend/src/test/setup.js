@@ -9,11 +9,13 @@ vi.mock("@monaco-editor/react", () => {
       onChange,
       options,
       path,
+      language,
       ...rest
     }) {
       return React.createElement("textarea", {
         "data-testid": "mock-monaco-editor",
         "data-path": path,
+        "data-language": language,
         "aria-label": "Code editor",
         value: value ?? "",
         disabled: Boolean(options?.readOnly),

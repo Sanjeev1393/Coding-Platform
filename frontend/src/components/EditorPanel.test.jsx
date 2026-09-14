@@ -144,7 +144,7 @@ describe("EditorPanel", () => {
     test("selected language label is visible", () => {
       renderEditor();
 
-      expect(screen.getByText("Java")).toBeInTheDocument();
+      expect(screen.getAllByText("Java")[0]).toBeInTheDocument();
     });
 
     test("Run Code and Submit are still reachable with an empty code string", async () => {
@@ -184,13 +184,17 @@ describe("EditorPanel", () => {
       expect(screen.getByLabelText("Code editor")).toBe(editor);
     });
 
-    test("action buttons and textarea use native disabled attribute when locked", () => {
+    test("action buttons, select, and textarea use native disabled attribute when locked", () => {
       renderEditor({ isLocked: true });
 
+      const langSelect = screen.getByRole("combobox", {
+        name: "Select programming language",
+      });
       const editor = screen.getByRole("textbox", { name: "Code editor" });
       const runBtn = screen.getByRole("button", { name: /run code/i });
       const submitBtn = screen.getByRole("button", { name: "Submit solution" });
 
+      expect(langSelect).toBeDisabled();
       expect(editor).toHaveAttribute("disabled");
       expect(runBtn).toHaveAttribute("disabled");
       expect(submitBtn).toHaveAttribute("disabled");
@@ -210,9 +214,15 @@ describe("EditorPanel", () => {
       const user = userEvent.setup();
       renderEditor();
 
+      const langSelect = screen.getByRole("combobox", {
+        name: "Select programming language",
+      });
       const editor = screen.getByRole("textbox", { name: "Code editor" });
       const runBtn = screen.getByRole("button", { name: "Run code" });
       const submitBtn = screen.getByRole("button", { name: "Submit solution" });
+
+      await user.tab();
+      expect(langSelect).toHaveFocus();
 
       await user.tab();
       expect(editor).toHaveFocus();
@@ -226,10 +236,26 @@ describe("EditorPanel", () => {
       expect(submitBtn.className).toMatch(/focus-visible:ring-2/);
     });
 
-    test("passes questionId to configure unique Monaco model path", () => {
-      renderEditor({ questionId: "two-sum" });
+    test("renders language selection dropdown and invokes onLanguageChange when changed", async () => {
+      const user = userEvent.setup();
+      const onLanguageChange = vi.fn();
+      renderEditor({ selectedLanguage: "java", onLanguageChange });
+
+      const langSelect = screen.getByRole("combobox", {
+        name: "Select programming language",
+      });
+      expect(langSelect).toBeInTheDocument();
+      expect(langSelect.value).toBe("java");
+
+      await user.selectOptions(langSelect, "python");
+      expect(onLanguageChange).toHaveBeenCalledWith("python");
+    });
+
+    test("passes questionId and language to configure unique Monaco model path", () => {
+      renderEditor({ questionId: "two-sum", selectedLanguage: "python" });
       const editor = screen.getByRole("textbox", { name: "Code editor" });
-      expect(editor).toHaveAttribute("data-path", "question-two-sum.java");
+      expect(editor).toHaveAttribute("data-path", "question-two-sum.py");
+      expect(editor).toHaveAttribute("data-language", "python");
     });
   });
 });
