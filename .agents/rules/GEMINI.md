@@ -21,7 +21,8 @@
 - Recommend prop-drilling alternatives (e.g., context, component composition) when props are passed through more than two layers unnecessarily.
 
 ## Git & Verification Rules
-- **Pre-push Verification**: ALWAYS ensure `npm run lint`, `npm run test:run`, and `npm run build` (in `frontend/`) pass before pushing to remote (`git push`).
-- Local commits can be made quickly, but pushes to GitHub must always pass lint, tests, and build.
-- Never push if there are any lint errors, failing tests, or broken builds.
-- Always fix errors before pushing.
+- **Pre-commit Verification**: ALWAYS ensure `npm run lint` (in `frontend/`) passes before making a commit (`git commit`).
+- **Pre-push Verification**: ALWAYS ensure `npm run test:run` and `npm run build` (in `frontend/`) pass before pushing to remote (`git push`).
+- Never commit if there are any lint errors.
+- Never push if there are any failing tests or broken builds.
+- Always fix errors before committing or pushing.

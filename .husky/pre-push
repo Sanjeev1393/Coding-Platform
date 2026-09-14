@@ -1,22 +1,16 @@
-echo "🔍 Running pre-push checks (lint, tests, build)..."
+echo "🔍 Running pre-push checks (tests & build)..."
 cd frontend || exit 1
 
-echo "⚡ Step 1/3: Running linter (npm run lint)..."
-npm run lint || {
-  echo "❌ Linting failed. Push aborted. Please fix lint errors before pushing."
-  exit 1
-}
-
-echo "🧪 Step 2/3: Running test suite (npm run test:run)..."
+echo "🧪 Step 1/2: Running test suite (npm run test:run)..."
 npm run test:run || {
   echo "❌ Tests failed. Push aborted. Please fix failing tests before pushing."
   exit 1
 }
 
-echo "📦 Step 3/3: Verifying production build (npm run build)..."
+echo "📦 Step 2/2: Verifying production build (npm run build)..."
 npm run build || {
   echo "❌ Build failed. Push aborted. Please fix build errors before pushing."
   exit 1
 }
 
-echo "✅ All pre-push checks passed (lint, tests, build). Proceeding with push."
+echo "✅ All pre-push checks passed (tests & build). Proceeding with push."

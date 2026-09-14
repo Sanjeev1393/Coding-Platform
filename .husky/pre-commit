@@ -1,0 +1,9 @@
+echo "🔍 Running pre-commit lint check..."
+cd frontend || exit 1
+
+npm run lint || {
+  echo "❌ Linting failed. Commit aborted. Please fix lint errors before committing."
+  exit 1
+}
+
+echo "✅ Lint check passed."
