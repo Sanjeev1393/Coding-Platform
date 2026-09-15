@@ -1,4 +1,4 @@
-package com.codingplatform.coding_platform_backend;
+package com.codingplatform.backend;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;

@@ -1,4 +1,4 @@
-package com.codingplatform.coding_platform_backend;
+package com.codingplatform.backend;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

@@ -1,4 +1,4 @@
-package com.codingplatform.coding_platform_backend.controller;
+package com.codingplatform.backend.controller;
 
 import java.util.Map;
 
