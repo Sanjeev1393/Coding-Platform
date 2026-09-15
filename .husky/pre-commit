@@ -1,9 +1,16 @@
-echo "🔍 Running pre-commit lint check..."
-cd frontend || exit 1
+echo "🎨 Step 1/2: Running backend format (spotless:apply)..."
+(cd backend && ./mvnw spotless:apply) || {
+  echo "❌ Backend formatting with Spotless failed. Commit aborted."
+  exit 1
+}
 
-npm run lint || {
+# Automatically stage any formatted backend files
+git add -u backend
+
+echo "🔍 Step 2/2: Running frontend lint check..."
+(cd frontend && npm run lint) || {
   echo "❌ Linting failed. Commit aborted. Please fix lint errors before committing."
   exit 1
 }
 
-echo "✅ Lint check passed."
+echo "✅ All pre-commit checks passed."

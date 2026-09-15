@@ -66,6 +66,22 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+			<plugin>
+				<groupId>com.diffplug.spotless</groupId>
+				<artifactId>spotless-maven-plugin</artifactId>
+				<version>2.44.2</version>
+				<configuration>
+					<java>
+						<googleJavaFormat>
+							<version>1.22.0</version>
+							<style>AOSP</style>
+						</googleJavaFormat>
+						<removeUnusedImports />
+						<trimTrailingWhitespace />
+						<endWithNewline />
+					</java>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 
