@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { ChevronDown, Check } from "lucide-react";
 import { SUPPORTED_LANGUAGES } from "../constants";
 
 function LanguageSelector({
@@ -68,21 +69,12 @@ function LanguageSelector({
         className="inline-flex cursor-pointer items-center justify-between gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span>{selectedName}</span>
-        <svg
+        <ChevronDown
           className={`h-3 w-3 text-slate-500 transition-transform duration-150 ${
             isOpen ? "rotate-180" : ""
           }`}
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="2"
-            d="M19 9l-7 7-7-7"
-          />
-        </svg>
+          aria-hidden="true"
+        />
       </button>
 
       {isOpen && !disabled && (
@@ -105,21 +97,11 @@ function LanguageSelector({
               >
                 {/* Tick mark on the left of the selected option */}
                 {isSelected ? (
-                  <svg
+                  <Check
                     data-testid={`tick-${lang.id}`}
                     aria-hidden="true"
                     className="mr-1.5 h-3.5 w-3.5 flex-shrink-0 text-blue-600"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2.5"
-                      d="M5 13l4 4L19 7"
-                    />
-                  </svg>
+                  />
                 ) : (
                   <span
                     className="mr-1.5 inline-block h-3.5 w-3.5 flex-shrink-0"

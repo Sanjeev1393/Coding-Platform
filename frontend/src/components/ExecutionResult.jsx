@@ -1,3 +1,5 @@
+import { Loader2 } from "lucide-react";
+
 function ExecutionResult({
   result,
   isRunning = false,
@@ -19,27 +21,10 @@ function ExecutionResult({
         aria-label="Execution result"
         className={`${className || "mt-4"} flex items-center gap-3 rounded-md border border-blue-200 bg-blue-50 p-4 text-blue-900`}
       >
-        <svg
+        <Loader2
           className="h-5 w-5 animate-spin text-blue-600"
-          xmlns="http://www.w3.org/2000/svg"
-          fill="none"
-          viewBox="0 0 24 24"
           aria-hidden="true"
-        >
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-          />
-        </svg>
+        />
         <div>
           <p className="text-sm font-semibold">Executing code…</p>
           <p className="mt-0.5 text-xs text-blue-700">{runningMessage}</p>
