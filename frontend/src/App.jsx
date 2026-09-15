@@ -135,21 +135,21 @@ function App() {
     setIsRunning(true);
     clearExecutionResult();
 
-    // Simulate ~1 second of "compilation / execution" safely
+    // Simulate ~1 second of compilation / execution safely
     runTimeoutRef.current = setTimeout(() => {
       if (currentCode.includes("// compile-error")) {
         setExecutionResult({
           status: "error",
           errorType: "compilation",
           language: activeLanguageName,
-          error: `Line 3: error: ';' expected\n    int target = 9\n                  ^\n1 error`,
+          error: `Solution.java:3: error: ';' expected\n        int target = 9\n                      ^\nSolution.java:5: error: cannot find symbol\n        return new int[]{0, 1}\n                              ^\n2 errors`,
         });
       } else if (currentCode.includes("// runtime-error")) {
         setExecutionResult({
           status: "error",
           errorType: "runtime",
           language: activeLanguageName,
-          error: `Exception in thread "main" java.lang.ArithmeticException: / by zero\n\tat Solution.twoSum(Solution.java:4)\n\tat Main.main(Main.java:8)`,
+          error: `Exception in thread "main" java.lang.ArithmeticException: / by zero\n\tat Solution.twoSum(Solution.java:4)\n\tat Main.main(Main.java:12)`,
         });
       } else {
         setExecutionResult({

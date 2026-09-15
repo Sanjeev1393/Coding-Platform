@@ -426,7 +426,9 @@ describe("App — full assessment flow", () => {
       expect(screen.getByText("✗ Compilation Error")).toBeInTheDocument();
       expect(screen.getByText("Compile-time")).toBeInTheDocument();
       expect(screen.getByText("Compiler error details")).toBeInTheDocument();
-      expect(screen.getByText(/Line 3: error: ';' expected/)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Solution\.java:3: error: ';' expected/)
+      ).toBeInTheDocument();
     });
 
     test("runtime error displays Error badge on tab and Runtime Error inside panel", () => {
