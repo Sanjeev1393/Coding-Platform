@@ -1,3 +1,4 @@
+import { useEffect, useRef, useCallback } from "react";
 import Editor from "@monaco-editor/react";
 import { getLanguageExtension } from "../utils/languageUtils";
 
@@ -7,7 +8,33 @@ function CodeEditor({
   language = "java",
   questionId,
   readOnly = false,
+  onRunCode,
+  onSubmit,
 }) {
+  const onRunCodeRef = useRef(onRunCode);
+  const onSubmitRef = useRef(onSubmit);
+
+  useEffect(() => {
+    onRunCodeRef.current = onRunCode;
+    onSubmitRef.current = onSubmit;
+  });
+
+  const handleEditorDidMount = useCallback((editor, monaco) => {
+    // Monaco intercepts Ctrl+Enter and Ctrl+Shift+Enter in its internal keybinding pipeline.
+    // Registering editor commands ensures shortcuts fire while cursor is focused in Monaco.
+    // monaco.KeyMod.CtrlCmd maps to Ctrl on Windows/Linux and ⌘ Command on macOS.
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+      onRunCodeRef.current?.();
+    });
+
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter,
+      () => {
+        onSubmitRef.current?.();
+      }
+    );
+  }, []);
+
   const handleEditorChange = (newValue) => {
     // If editor is locked (running, submitted, or timer up), ignore any changes
     if (readOnly) return;
@@ -28,6 +55,7 @@ function CodeEditor({
         path={modelPath}
         value={value}
         onChange={handleEditorChange}
+        onMount={handleEditorDidMount}
         loading={
           <div className="flex h-full w-full items-center justify-center bg-gray-900 text-slate-400">
             <span className="font-mono text-sm">Loading editor…</span>

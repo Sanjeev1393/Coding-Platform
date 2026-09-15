@@ -9,6 +9,7 @@ import {
   buildQuestionLanguageKey,
 } from "./utils/languageUtils";
 import { useAssessmentTimer } from "./hooks/useAssessmentTimer";
+import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import AssessmentHeader from "./components/AssessmentHeader";
 import QuestionPanel from "./components/QuestionPanel";
 import EditorPanel from "./components/EditorPanel";
@@ -171,6 +172,13 @@ function App() {
   const handleCancelSubmit = () => {
     setShowConfirmDialog(false);
   };
+
+  // Cross-platform keyboard shortcuts (Ctrl/⌘ + Enter to run, Ctrl/⌘ + Shift + Enter to submit)
+  useKeyboardShortcuts({
+    onRunCode: handleRunCode,
+    onSubmit: handleSubmitClick,
+    disabled: isLocked || showConfirmDialog,
+  });
 
   return (
     <main className="flex h-screen flex-col bg-slate-100 text-slate-800 overflow-hidden">

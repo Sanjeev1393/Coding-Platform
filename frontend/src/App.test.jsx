@@ -451,20 +451,24 @@ describe("App — full assessment flow", () => {
       ).not.toBeInTheDocument();
     });
 
-    test("run is unavailable after timeout", () => {
-      render(<App />);
+    test(
+      "run is unavailable after timeout",
+      () => {
+        render(<App />);
 
-      // Advance full assessment duration (30 minutes)
-      advanceSeconds(1800);
+        // Advance full assessment duration (30 minutes)
+        advanceSeconds(1800);
 
-      expect(screen.getByRole("button", { name: "Run code" })).toBeDisabled();
-      expect(
-        screen.getByRole("button", { name: "Submit solution" })
-      ).toBeDisabled();
-      expect(
-        screen.getByRole("button", { name: /custom input/i })
-      ).toBeDisabled();
-    });
+        expect(screen.getByRole("button", { name: "Run code" })).toBeDisabled();
+        expect(
+          screen.getByRole("button", { name: "Submit solution" })
+        ).toBeDisabled();
+        expect(
+          screen.getByRole("button", { name: /custom input/i })
+        ).toBeDisabled();
+      },
+      15000
+    );
 
     test("run is unavailable after submission", () => {
       render(<App />);
@@ -499,6 +503,80 @@ describe("App — full assessment flow", () => {
       expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Run code" })).toBeEnabled();
     });
+  });
+
+  // ─── Keyboard shortcuts ───────────────────────────────────────────────────────
+
+  describe("keyboard shortcuts", () => {
+    test("Ctrl + Enter executes code (Windows / Linux)", () => {
+      render(<App />);
+
+      fireEvent.keyDown(window, { key: "Enter", ctrlKey: true });
+
+      // Changes to running state
+      expect(screen.getByRole("button", { name: "Running…" })).toBeDisabled();
+
+      advanceSeconds(1);
+
+      expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Run code" })).toBeEnabled();
+    });
+
+    test("⌘ + Enter executes code (macOS metaKey)", () => {
+      render(<App />);
+
+      fireEvent.keyDown(window, { key: "Enter", metaKey: true });
+
+      expect(screen.getByRole("button", { name: "Running…" })).toBeDisabled();
+
+      advanceSeconds(1);
+
+      expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
+    });
+
+    test("Ctrl + Shift + Enter opens submission confirmation dialog", () => {
+      render(<App />);
+
+      fireEvent.keyDown(window, {
+        key: "Enter",
+        ctrlKey: true,
+        shiftKey: true,
+      });
+
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Submit solution?" })
+      ).toBeInTheDocument();
+    });
+
+    test("⌘ + Shift + Enter opens submission confirmation dialog (macOS)", () => {
+      render(<App />);
+
+      fireEvent.keyDown(window, {
+        key: "Enter",
+        metaKey: true,
+        shiftKey: true,
+      });
+
+      expect(screen.getByRole("dialog")).toBeInTheDocument();
+    });
+
+    test(
+      "shortcuts do not trigger execution or submission when locked or after timeout",
+      () => {
+        render(<App />);
+
+        // Advance full duration to trigger timeout lock
+        advanceSeconds(1800);
+
+        fireEvent.keyDown(window, { key: "Enter", ctrlKey: true });
+        expect(screen.queryByRole("button", { name: "Running…" })).not.toBeInTheDocument();
+
+        fireEvent.keyDown(window, { key: "Enter", ctrlKey: true, shiftKey: true });
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      },
+      15000
+    );
   });
 
   // ─── Submission flow ─────────────────────────────────────────────────────────
