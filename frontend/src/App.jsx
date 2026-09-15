@@ -12,18 +12,26 @@ import { useAssessmentTimer } from "./hooks/useAssessmentTimer";
 import AssessmentHeader from "./components/AssessmentHeader";
 import QuestionPanel from "./components/QuestionPanel";
 import EditorPanel from "./components/EditorPanel";
-import OutputPanel from "./components/OutputPanel";
 import ConfirmDialog from "./components/ConfirmDialog";
 import StatusBanner from "./components/StatusBanner";
 import EmptyAssessment from "./components/EmptyAssessment";
+
+const INITIAL_EXECUTION_RESULT = {
+  status: "idle",
+  output: "",
+  error: "",
+  executionTime: null,
+};
 
 function App() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedLanguage, setSelectedLanguage] = useState("java");
   const [solutionsByKey, setSolutionsByKey] = useState({});
+  const [customInputsByQuestion, setCustomInputsByQuestion] = useState({});
   const [isRunning, setIsRunning] = useState(false);
-  const [result, setResult] = useState(null);
-  const [error, setError] = useState("");
+  const [executionResult, setExecutionResult] = useState(
+    INITIAL_EXECUTION_RESULT
+  );
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -56,33 +64,37 @@ function App() {
     ? (solutionsByKey[currentKey] ??
       getStarterCode(currentQuestion, selectedLanguage))
     : "";
+  const currentCustomInput = currentQuestion
+    ? (customInputsByQuestion[currentQuestion.id] ?? "")
+    : "";
 
   const activeLanguageConfig = SUPPORTED_LANGUAGES.find(
     (lang) => lang.id === selectedLanguage
   );
   const activeLanguageName = activeLanguageConfig?.name || selectedLanguage;
 
+  const clearExecutionResult = () => {
+    setExecutionResult(INITIAL_EXECUTION_RESULT);
+  };
+
   const handlePreviousQuestion = () => {
     if (currentQuestionIndex > 0) {
       setCurrentQuestionIndex((prev) => prev - 1);
-      setResult(null);
-      setError("");
+      clearExecutionResult();
     }
   };
 
   const handleNextQuestion = () => {
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex((prev) => prev + 1);
-      setResult(null);
-      setError("");
+      clearExecutionResult();
     }
   };
 
   const handleLanguageChange = (newLanguage) => {
     if (isLocked) return;
     setSelectedLanguage(newLanguage);
-    setResult(null);
-    setError("");
+    clearExecutionResult();
   };
 
   const handleCodeChange = (newCode) => {
@@ -94,26 +106,42 @@ function App() {
     }));
   };
 
+  const handleCustomInputChange = (eventOrValue) => {
+    if (isLocked || !currentQuestion) return;
+    const nextVal =
+      typeof eventOrValue === "string"
+        ? eventOrValue
+        : eventOrValue?.target?.value ?? "";
+    setCustomInputsByQuestion((prev) => ({
+      ...prev,
+      [currentQuestion.id]: nextVal,
+    }));
+  };
+
   const handleRunCode = () => {
-    if (isLocked) return;
+    if (isLocked || isRunning) return;
 
     if (currentCode.trim() === "") {
-      setResult(null);
-      setError("Editor is empty. Please write your solution before running.");
+      setExecutionResult({
+        status: "error",
+        error: "Editor is empty. Please write your solution before running.",
+        output: "",
+        executionTime: null,
+      });
       return;
     }
 
     setIsRunning(true);
-    setResult(null);
-    setError("");
+    clearExecutionResult();
 
     // Simulate ~1 second of "compilation / execution" safely
     runTimeoutRef.current = setTimeout(() => {
-      setResult({
-        status: "Passed",
-        testCases: "2 / 2",
-        output: "[0, 1]",
+      setExecutionResult({
+        status: "success",
         language: activeLanguageName,
+        input: currentCustomInput,
+        output: "Mock execution completed",
+        executionTime: "15 ms",
       });
       setIsRunning(false);
     }, 1000);
@@ -123,12 +151,15 @@ function App() {
     if (isLocked || showConfirmDialog) return;
 
     if (currentCode.trim() === "") {
-      setError(
-        "Editor is empty. Please write your solution before submitting."
-      );
+      setExecutionResult({
+        status: "error",
+        error: "Editor is empty. Please write your solution before submitting.",
+        output: "",
+        executionTime: null,
+      });
       return;
     }
-    setError("");
+    clearExecutionResult();
     setShowConfirmDialog(true);
   };
 
@@ -142,9 +173,9 @@ function App() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col bg-slate-100 text-slate-800">
+    <main className="flex h-screen flex-col bg-slate-100 text-slate-800 overflow-hidden">
       <AssessmentHeader
-        testName="Java Programming Test"
+        testName="DSA Coding Assessment"
         formattedTime={formattedTime}
         isUrgent={isUrgent}
         isTimeUp={isTimeUp}
@@ -160,7 +191,7 @@ function App() {
       {!hasQuestions ? (
         <EmptyAssessment />
       ) : (
-        <div className="grid flex-1 grid-cols-1 md:grid-cols-5">
+        <div className="grid flex-1 grid-cols-1 md:grid-cols-5 min-h-0 overflow-hidden">
           <QuestionPanel
             question={currentQuestion}
             questionNumber={currentQuestionIndex + 1}
@@ -181,6 +212,11 @@ function App() {
             onSubmit={handleSubmitClick}
             isRunning={isRunning}
             isLocked={isLocked}
+            customInput={currentCustomInput}
+            onCustomInputChange={handleCustomInputChange}
+            executionResult={executionResult}
+            activeLanguageName={activeLanguageName}
+            currentQuestionIndex={currentQuestionIndex}
           >
             {isSubmitted ? (
               <StatusBanner
@@ -194,15 +230,7 @@ function App() {
                 title="⏳ Time has expired"
                 message="The assessment time is up. Code editing and execution have been disabled."
               />
-            ) : (
-              <OutputPanel
-                result={result}
-                error={error}
-                isRunning={isRunning}
-                languageName={activeLanguageName}
-                questionNumber={currentQuestionIndex + 1}
-              />
-            )}
+            ) : null}
           </EditorPanel>
         </div>
       )}

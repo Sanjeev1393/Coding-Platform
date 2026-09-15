@@ -1,5 +1,5 @@
 function AssessmentHeader({
-  testName = "Java Programming Test",
+  testName = "DSA Coding Assessment",
   formattedTime,
   isUrgent = false,
   isTimeUp = false,

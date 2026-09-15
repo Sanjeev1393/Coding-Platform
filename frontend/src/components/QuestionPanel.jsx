@@ -10,7 +10,7 @@ function QuestionPanel({
   if (!question) return null;
 
   return (
-    <section className="flex flex-col justify-between overflow-y-auto border-b border-slate-200 bg-white p-7 md:col-span-2 md:border-b-0 md:border-r">
+    <section className="flex flex-col justify-between overflow-y-auto min-h-0 border-b border-slate-200 bg-white p-7 md:col-span-2 md:border-b-0 md:border-r">
       <div>
         <p className="font-semibold text-blue-700">
           Question {questionNumber} of {totalQuestions}

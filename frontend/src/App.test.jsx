@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, act } from "@testing-library/react";
+import { render, screen, fireEvent, act, within } from "@testing-library/react";
 import App from "./App";
 import { questions as defaultQuestions } from "./constants";
 import { getStarterCode } from "./utils/languageUtils";
@@ -183,21 +183,24 @@ describe("App — full assessment flow", () => {
 
       // Execution result appears for Question 1
       expect(
-        screen.getByText(/2 \/ 2 test cases passed/)
+        screen.getByText("Mock execution completed")
       ).toBeInTheDocument();
 
       // Navigate to Question 2
       fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
-      // Execution result must be cleared
+      // Execution result must be cleared (hidden)
       expect(
-        screen.queryByText(/2 \/ 2 test cases passed/)
+        screen.queryByRole("region", { name: "Execution result" })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Mock execution completed")
       ).not.toBeInTheDocument();
 
       // Navigate back to Question 1: result should remain cleared on navigation
       fireEvent.click(screen.getByRole("button", { name: "Previous" }));
       expect(
-        screen.queryByText(/2 \/ 2 test cases passed/)
+        screen.queryByRole("region", { name: "Execution result" })
       ).not.toBeInTheDocument();
     });
 
@@ -228,7 +231,147 @@ describe("App — full assessment flow", () => {
   // ─── Code execution ──────────────────────────────────────────────────────────
 
   describe("code execution", () => {
-    test("run empty code: validation message appears", () => {
+    test("custom input accepts text", () => {
+      render(<App />);
+
+      // Expand Custom Input tab
+      fireEvent.click(screen.getByRole("button", { name: /custom input/i }));
+
+      const customInput = screen.getByRole("textbox", { name: "Custom Input" });
+      expect(customInput).toHaveValue("");
+
+      fireEvent.change(customInput, { target: { value: "10 20\n30" } });
+      expect(customInput).toHaveValue("10 20\n30");
+    });
+
+    test("each question preserves its own custom input across navigation", () => {
+      render(<App />);
+
+      // Expand Custom Input on Question 1
+      fireEvent.click(screen.getByRole("button", { name: /custom input/i }));
+      const customInputQ1 = screen.getByRole("textbox", {
+        name: "Custom Input",
+      });
+      fireEvent.change(customInputQ1, { target: { value: "Q1 custom testcase" } });
+      expect(customInputQ1).toHaveValue("Q1 custom testcase");
+
+      // Navigate to Question 2
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+      // Question 2 should have empty custom input
+      const toggleQ2 = screen.getByRole("button", { name: /custom input/i });
+      fireEvent.click(toggleQ2);
+      const customInputQ2 = screen.getByRole("textbox", {
+        name: "Custom Input",
+      });
+      expect(customInputQ2).toHaveValue("");
+
+      // Provide custom input for Question 2
+      fireEvent.change(customInputQ2, { target: { value: "Q2 custom testcase" } });
+      expect(customInputQ2).toHaveValue("Q2 custom testcase");
+
+      // Navigate back to Question 1: Question 1's custom input is preserved
+      fireEvent.click(screen.getByRole("button", { name: "Previous" }));
+      const toggleQ1Back = screen.getByRole("button", { name: /custom input/i });
+      fireEvent.click(toggleQ1Back);
+      expect(
+        screen.getByRole("textbox", { name: "Custom Input" })
+      ).toHaveValue("Q1 custom testcase");
+
+      // Navigate to Question 2: Question 2's custom input is preserved
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+      const toggleQ2Back = screen.getByRole("button", { name: /custom input/i });
+      fireEvent.click(toggleQ2Back);
+      expect(
+        screen.getByRole("textbox", { name: "Custom Input" })
+      ).toHaveValue("Q2 custom testcase");
+    });
+
+    test("output panel is hidden initially until code is executed", () => {
+      render(<App />);
+
+      expect(
+        screen.queryByRole("region", { name: "Execution result" })
+      ).not.toBeInTheDocument();
+    });
+
+    test("clicking Run changes the button to Running.... and disables it", () => {
+      render(<App />);
+
+      const runBtn = screen.getByRole("button", { name: "Run code" });
+      fireEvent.click(runBtn);
+
+      const runningBtn = screen.getByRole("button", { name: "Running…" });
+      expect(runningBtn).toBeInTheDocument();
+      expect(runningBtn).toBeDisabled();
+      expect(screen.getByRole("textbox", { name: "Code editor" })).toBeDisabled();
+      expect(screen.getByText("Executing code…")).toBeInTheDocument();
+    });
+
+    test("mock output appears after execution with language, custom input, and timing", () => {
+      render(<App />);
+
+      // Expand Custom Input tab
+      fireEvent.click(screen.getByRole("button", { name: /custom input/i }));
+
+      // Provide custom input
+      const customInput = screen.getByRole("textbox", { name: "Custom Input" });
+      fireEvent.change(customInput, { target: { value: "test input" } });
+
+      // Run code
+      fireEvent.click(screen.getByRole("button", { name: "Run code" }));
+      advanceSeconds(1);
+
+      // Verify output panel contents
+      const resultRegion = screen.getByRole("region", {
+        name: "Execution result",
+      });
+      expect(resultRegion).toBeInTheDocument();
+      expect(screen.getByText("✓ Success")).toBeInTheDocument();
+      expect(resultRegion).toHaveTextContent("Java");
+      expect(screen.getByText(/Execution time: 15 ms/)).toBeInTheDocument();
+      expect(within(resultRegion).getByText("test input")).toBeInTheDocument();
+      expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Run code" })).toBeEnabled();
+    });
+
+    test("header displays 'DSA Coding Assessment' as test name", () => {
+      render(<App />);
+      expect(screen.getByText("DSA Coding Assessment")).toBeInTheDocument();
+    });
+
+    test("when output appears, user can easily reopen Custom Input and update it", () => {
+      render(<App />);
+
+      // Run code to produce output
+      fireEvent.click(screen.getByRole("button", { name: "Run code" }));
+      advanceSeconds(1);
+
+      // Output appears
+      expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
+
+      // User can easily reopen Custom Input
+      const toggleBtn = screen.getByRole("button", { name: /custom input/i });
+      expect(toggleBtn).toBeEnabled();
+      fireEvent.click(toggleBtn);
+
+      // Custom input textarea expands and accepts new data
+      const textarea = screen.getByRole("textbox", { name: "Custom Input" });
+      expect(textarea).toBeInTheDocument();
+      fireEvent.change(textarea, { target: { value: "edge case [1, 2]" } });
+      expect(textarea).toHaveValue("edge case [1, 2]");
+
+      // Re-running code incorporates the new input into the result
+      fireEvent.click(screen.getByRole("button", { name: "Run code" }));
+      advanceSeconds(1);
+
+      const resultRegion = screen.getByRole("region", {
+        name: "Execution result",
+      });
+      expect(within(resultRegion).getByText("edge case [1, 2]")).toBeInTheDocument();
+    });
+
+    test("empty code cannot be executed and displays validation error", () => {
       render(<App />);
 
       const editor = screen.getByRole("textbox", { name: "Code editor" });
@@ -236,57 +379,125 @@ describe("App — full assessment flow", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Run code" }));
 
+      // Error message is displayed, execution is not running
       expect(
         screen.getByText(
           "Editor is empty. Please write your solution before running."
         )
       ).toBeInTheDocument();
       expect(
-        screen.queryByText(/2 \/ 2 test cases passed/)
+        screen.queryByRole("button", { name: "Running…" })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Mock execution completed")
       ).not.toBeInTheDocument();
     });
 
-    test("run valid code: loading state appears, followed by mock result", () => {
+    test("an error result uses the correct error styling", () => {
       render(<App />);
+
+      const editor = screen.getByRole("textbox", { name: "Code editor" });
+      fireEvent.change(editor, { target: { value: "" } });
 
       fireEvent.click(screen.getByRole("button", { name: "Run code" }));
 
-      // Loading state: action button is running and editor is locked (disabled)
-      expect(screen.getByRole("button", { name: "Running…" })).toBeDisabled();
-      expect(screen.getByRole("textbox", { name: "Code editor" })).toBeDisabled();
-      expect(screen.getByText("Executing code…")).toBeInTheDocument();
-
-      // Fast-forward mock 1s execution
-      advanceSeconds(1);
-
-      // Result appears and button restores
-      expect(
-        screen.getByText(/2 \/ 2 test cases passed/)
-      ).toBeInTheDocument();
-      expect(screen.getByText("Output")).toBeInTheDocument();
-      expect(screen.getAllByText("[0, 1]")).toHaveLength(2);
-      expect(screen.getByRole("button", { name: "Run code" })).toBeEnabled();
+      const resultRegion = screen.getByRole("region", {
+        name: "Execution result",
+      });
+      expect(resultRegion).toHaveClass("bg-red-50");
+      expect(screen.getByText("✗ Error")).toBeInTheDocument();
     });
 
-    test("click Run repeatedly: only one execution is started", () => {
+    test("previous output is cleared when changing questions", () => {
+      render(<App />);
+
+      // Run code on Question 1
+      fireEvent.click(screen.getByRole("button", { name: "Run code" }));
+      advanceSeconds(1);
+      expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
+
+      // Navigate to Question 2
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+
+      // Output should be reset to idle (hidden)
+      expect(
+        screen.queryByRole("region", { name: "Execution result" })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Mock execution completed")
+      ).not.toBeInTheDocument();
+    });
+
+    test("previous output is cleared when changing languages", () => {
+      render(<App />);
+
+      // Run code with default language (Java)
+      fireEvent.click(screen.getByRole("button", { name: "Run code" }));
+      advanceSeconds(1);
+      expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
+
+      // Change language to Python
+      const langSelect = screen.getByRole("combobox", {
+        name: "Select programming language",
+      });
+      fireEvent.change(langSelect, { target: { value: "python" } });
+
+      // Output should be reset to idle (hidden)
+      expect(
+        screen.queryByRole("region", { name: "Execution result" })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Mock execution completed")
+      ).not.toBeInTheDocument();
+    });
+
+    test("run is unavailable after timeout", () => {
+      render(<App />);
+
+      // Advance full assessment duration (30 minutes)
+      advanceSeconds(1800);
+
+      expect(screen.getByRole("button", { name: "Run code" })).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Submit solution" })
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: /custom input/i })
+      ).toBeDisabled();
+    });
+
+    test("run is unavailable after submission", () => {
+      render(<App />);
+
+      // Submit assessment
+      fireEvent.click(screen.getByRole("button", { name: "Submit solution" }));
+      fireEvent.click(screen.getByRole("button", { name: "Yes, submit" }));
+
+      expect(screen.getByRole("button", { name: "Run code" })).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Submit solution" })
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: /custom input/i })
+      ).toBeDisabled();
+    });
+
+    test("repeated clicks do not start multiple executions", () => {
       render(<App />);
 
       const runBtn = screen.getByRole("button", { name: "Run code" });
       fireEvent.click(runBtn);
 
-      // During run, button is disabled with "Running…"
       const runningBtn = screen.getByRole("button", { name: "Running…" });
       expect(runningBtn).toBeDisabled();
 
-      // Subsequent clicks while running are blocked
+      // Second click while running
       fireEvent.click(runningBtn);
 
-      // Finish execution
       advanceSeconds(1);
 
-      expect(
-        screen.getByText(/2 \/ 2 test cases passed/)
-      ).toBeInTheDocument();
+      expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Run code" })).toBeEnabled();
     });
   });
 

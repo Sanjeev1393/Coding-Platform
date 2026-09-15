@@ -228,12 +228,38 @@ describe("EditorPanel", () => {
       expect(editor).toHaveFocus();
 
       await user.tab();
+      expect(
+        screen.getByRole("button", { name: /custom input/i })
+      ).toHaveFocus();
+
+      await user.tab();
       expect(runBtn).toHaveFocus();
       expect(runBtn.className).toMatch(/focus-visible:ring-2/);
 
       await user.tab();
       expect(submitBtn).toHaveFocus();
       expect(submitBtn.className).toMatch(/focus-visible:ring-2/);
+    });
+
+    test("renders CustomInput and passes value and onCustomInputChange", async () => {
+      const user = userEvent.setup();
+      const onCustomInputChange = vi.fn();
+      renderEditor({
+        customInput: "input data",
+        onCustomInputChange,
+      });
+
+      // Expand the Custom Input tab
+      const toggleBtn = screen.getByRole("button", { name: /custom input/i });
+      await user.click(toggleBtn);
+
+      const customInputArea = screen.getByRole("textbox", {
+        name: "Custom Input",
+      });
+      expect(customInputArea).toHaveValue("input data");
+
+      await user.type(customInputArea, "!");
+      expect(onCustomInputChange).toHaveBeenCalled();
     });
 
     test("renders language selection dropdown and invokes onLanguageChange when changed", async () => {
