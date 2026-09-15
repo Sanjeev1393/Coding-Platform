@@ -137,13 +137,29 @@ function App() {
 
     // Simulate ~1 second of "compilation / execution" safely
     runTimeoutRef.current = setTimeout(() => {
-      setExecutionResult({
-        status: "success",
-        language: activeLanguageName,
-        input: currentCustomInput,
-        output: "Mock execution completed",
-        executionTime: "15 ms",
-      });
+      if (currentCode.includes("// compile-error")) {
+        setExecutionResult({
+          status: "error",
+          errorType: "compilation",
+          language: activeLanguageName,
+          error: `Line 3: error: ';' expected\n    int target = 9\n                  ^\n1 error`,
+        });
+      } else if (currentCode.includes("// runtime-error")) {
+        setExecutionResult({
+          status: "error",
+          errorType: "runtime",
+          language: activeLanguageName,
+          error: `Exception in thread "main" java.lang.ArithmeticException: / by zero\n\tat Solution.twoSum(Solution.java:4)\n\tat Main.main(Main.java:8)`,
+        });
+      } else {
+        setExecutionResult({
+          status: "success",
+          language: activeLanguageName,
+          input: currentCustomInput,
+          output: "Mock execution completed",
+          executionTime: "15 ms",
+        });
+      }
       setIsRunning(false);
     }, 1000);
   };

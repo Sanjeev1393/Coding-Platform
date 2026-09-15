@@ -40,22 +40,44 @@ function ExecutionResult({
   }
 
   if (status === "error") {
+    const errorType = result.errorType || "error";
+    const errorTitle =
+      errorType === "compilation"
+        ? "Compilation Error"
+        : errorType === "runtime"
+          ? "Runtime Error"
+          : "Error";
+
+    const errorSubtitle =
+      errorType === "compilation"
+        ? "Compiler error details"
+        : errorType === "runtime"
+          ? "Runtime exception details"
+          : "Error details";
+
     return (
       <div
         role="region"
         aria-label="Execution result"
         className={`${className || "mt-4"} rounded-md border border-red-200 bg-red-50 p-4 text-red-800`}
       >
-        <div className="flex items-center gap-2">
-          <span className="font-semibold text-red-700">✗ Error</span>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-red-700">✗ {errorTitle}</span>
+            {errorType !== "error" && (
+              <span className="rounded bg-red-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-red-800 uppercase tracking-wider">
+                {errorType === "compilation" ? "Compile-time" : "Runtime"}
+              </span>
+            )}
+          </div>
           {result.language && (
             <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
               {result.language}
             </span>
           )}
         </div>
-        <p className="mt-2 text-xs font-medium uppercase tracking-wider text-red-600">
-          Error details
+        <p className="mt-2.5 text-xs font-medium uppercase tracking-wider text-red-600">
+          {errorSubtitle}
         </p>
         <pre className="mt-1 max-h-[160px] overflow-y-auto rounded-md bg-white p-3 font-mono text-sm text-red-700 border border-red-100 whitespace-pre-wrap">
           {result.error || "An unexpected error occurred during execution."}

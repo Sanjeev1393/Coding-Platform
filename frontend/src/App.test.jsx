@@ -408,6 +408,48 @@ describe("App — full assessment flow", () => {
       expect(screen.getByText("✗ Error")).toBeInTheDocument();
     });
 
+    test("compilation error displays Error badge on tab and Compilation Error inside panel", () => {
+      render(<App />);
+
+      const editor = screen.getByRole("textbox", { name: "Code editor" });
+      fireEvent.change(editor, { target: { value: "int a = 5 // compile-error" } });
+
+      fireEvent.click(screen.getByRole("button", { name: "Run code" }));
+      advanceSeconds(1);
+
+      // Tab bar shows Error badge
+      const tab = screen.getByRole("button", { name: /test result/i });
+      expect(tab).toBeInTheDocument();
+      expect(within(tab).getByText("Error")).toBeInTheDocument();
+
+      // Panel inside shows Compilation Error and compiler output
+      expect(screen.getByText("✗ Compilation Error")).toBeInTheDocument();
+      expect(screen.getByText("Compile-time")).toBeInTheDocument();
+      expect(screen.getByText("Compiler error details")).toBeInTheDocument();
+      expect(screen.getByText(/Line 3: error: ';' expected/)).toBeInTheDocument();
+    });
+
+    test("runtime error displays Error badge on tab and Runtime Error inside panel", () => {
+      render(<App />);
+
+      const editor = screen.getByRole("textbox", { name: "Code editor" });
+      fireEvent.change(editor, { target: { value: "int a = 1 / 0; // runtime-error" } });
+
+      fireEvent.click(screen.getByRole("button", { name: "Run code" }));
+      advanceSeconds(1);
+
+      // Tab bar shows Error badge
+      const tab = screen.getByRole("button", { name: /test result/i });
+      expect(tab).toBeInTheDocument();
+      expect(within(tab).getByText("Error")).toBeInTheDocument();
+
+      // Panel inside shows Runtime Error and exception output
+      expect(screen.getByText("✗ Runtime Error")).toBeInTheDocument();
+      expect(screen.getByText("Runtime")).toBeInTheDocument();
+      expect(screen.getByText("Runtime exception details")).toBeInTheDocument();
+      expect(screen.getByText(/ArithmeticException: \/ by zero/)).toBeInTheDocument();
+    });
+
     test("previous output is cleared when changing questions", () => {
       render(<App />);
 

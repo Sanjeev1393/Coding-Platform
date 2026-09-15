@@ -90,5 +90,41 @@ describe("ExecutionResult", () => {
         screen.getByText("IndentationError: unexpected indent at line 4")
       ).toBeInTheDocument();
     });
+
+    test("displays compilation error with Compile-time badge and compiler details", () => {
+      const compileErrorResult = {
+        status: "error",
+        errorType: "compilation",
+        language: "Java",
+        error: "Line 5: error: ';' expected",
+      };
+
+      render(<ExecutionResult result={compileErrorResult} isRunning={false} />);
+
+      expect(screen.getByText("✗ Compilation Error")).toBeInTheDocument();
+      expect(screen.getByText("Compile-time")).toBeInTheDocument();
+      expect(screen.getByText("Compiler error details")).toBeInTheDocument();
+      expect(screen.getByText("Line 5: error: ';' expected")).toBeInTheDocument();
+    });
+
+    test("displays runtime error with Runtime badge and exception details", () => {
+      const runtimeErrorResult = {
+        status: "error",
+        errorType: "runtime",
+        language: "Java",
+        error: "java.lang.ArithmeticException: / by zero",
+      };
+
+      render(<ExecutionResult result={runtimeErrorResult} isRunning={false} />);
+
+      expect(screen.getByText("✗ Runtime Error")).toBeInTheDocument();
+      expect(screen.getByText("Runtime")).toBeInTheDocument();
+      expect(
+        screen.getByText("Runtime exception details")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("java.lang.ArithmeticException: / by zero")
+      ).toBeInTheDocument();
+    });
   });
 });
