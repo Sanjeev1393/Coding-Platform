@@ -7,6 +7,40 @@ import { getStarterCode } from "./utils/languageUtils";
 
 let mockQuestions = null;
 
+vi.mock("./services/executionApi", () => ({
+  executeCode: vi.fn((payload) => {
+    const sourceCode = payload?.sourceCode || "";
+    if (sourceCode.includes("// compile-error")) {
+      return Promise.resolve({
+        status: "ERROR",
+        stdout: "",
+        compilationOutput: `Solution.java:3: error: ';' expected\n        int target = 9\n                      ^\nSolution.java:5: error: cannot find symbol\n        return new int[]{0, 1}\n                              ^\n2 errors`,
+        stderr: "",
+        executionTimeMs: 0,
+        memoryKb: 0,
+      });
+    }
+    if (sourceCode.includes("// runtime-error")) {
+      return Promise.resolve({
+        status: "ERROR",
+        stdout: "",
+        compilationOutput: "",
+        stderr: `Exception in thread "main" java.lang.ArithmeticException: / by zero\n\tat Solution.twoSum(Solution.java:4)\n\tat Main.main(Main.java:12)`,
+        executionTimeMs: 5,
+        memoryKb: 1024,
+      });
+    }
+    return Promise.resolve({
+      status: "SUCCESS",
+      stdout: "Mock execution completed",
+      compilationOutput: "",
+      stderr: "",
+      executionTimeMs: 15,
+      memoryKb: 2048,
+    });
+  }),
+}));
+
 vi.mock("./constants", async (importOriginal) => {
   const actual = await importOriginal();
   return {
@@ -31,6 +65,14 @@ function advanceSeconds(n) {
   for (let i = 0; i < n; i++) {
     act(() => {
       vi.advanceTimersByTime(ONE_SECOND);
+    });
+  }
+}
+
+async function advanceSecondsAsync(n = 1) {
+  for (let i = 0; i < n; i++) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(ONE_SECOND);
     });
   }
 }
@@ -174,12 +216,12 @@ describe("App — full assessment flow", () => {
       );
     });
 
-    test("clear execution result on navigation: Question 1 result does not appear on Question 2", () => {
+    test("clear execution result on navigation: Question 1 result does not appear on Question 2", async () => {
       render(<App />);
 
       // Run code on Question 1
       fireEvent.click(screen.getByRole("button", { name: "Run code" }));
-      advanceSeconds(1);
+      await advanceSecondsAsync(1);
 
       // Execution result appears for Question 1
       expect(
@@ -295,7 +337,7 @@ describe("App — full assessment flow", () => {
       ).not.toBeInTheDocument();
     });
 
-    test("clicking Run changes the button to Running.... and disables it", () => {
+    test("clicking Run changes the button to Running.... and disables it", async () => {
       render(<App />);
 
       const runBtn = screen.getByRole("button", { name: "Run code" });
@@ -306,9 +348,11 @@ describe("App — full assessment flow", () => {
       expect(runningBtn).toBeDisabled();
       expect(screen.getByRole("textbox", { name: "Code editor" })).toBeDisabled();
       expect(screen.getByText("Executing code…")).toBeInTheDocument();
+
+      await advanceSecondsAsync(1);
     });
 
-    test("mock output appears after execution with language, custom input, and timing", () => {
+    test("mock output appears after execution with language, custom input, and timing", async () => {
       render(<App />);
 
       // Expand Custom Input tab
@@ -320,7 +364,7 @@ describe("App — full assessment flow", () => {
 
       // Run code
       fireEvent.click(screen.getByRole("button", { name: "Run code" }));
-      advanceSeconds(1);
+      await advanceSecondsAsync(1);
 
       // Verify output panel contents
       const resultRegion = screen.getByRole("region", {
@@ -340,12 +384,12 @@ describe("App — full assessment flow", () => {
       expect(screen.getByText("DSA Coding Assessment")).toBeInTheDocument();
     });
 
-    test("when output appears, user can easily reopen Custom Input and update it", () => {
+    test("when output appears, user can easily reopen Custom Input and update it", async () => {
       render(<App />);
 
       // Run code to produce output
       fireEvent.click(screen.getByRole("button", { name: "Run code" }));
-      advanceSeconds(1);
+      await advanceSecondsAsync(1);
 
       // Output appears
       expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
@@ -363,7 +407,7 @@ describe("App — full assessment flow", () => {
 
       // Re-running code incorporates the new input into the result
       fireEvent.click(screen.getByRole("button", { name: "Run code" }));
-      advanceSeconds(1);
+      await advanceSecondsAsync(1);
 
       const resultRegion = screen.getByRole("region", {
         name: "Execution result",
@@ -408,14 +452,14 @@ describe("App — full assessment flow", () => {
       expect(screen.getByText("✗ Error")).toBeInTheDocument();
     });
 
-    test("compilation error displays Error badge on tab and Compilation Error inside panel", () => {
+    test("compilation error displays Error badge on tab and Compilation Error inside panel", async () => {
       render(<App />);
 
       const editor = screen.getByRole("textbox", { name: "Code editor" });
       fireEvent.change(editor, { target: { value: "int a = 5 // compile-error" } });
 
       fireEvent.click(screen.getByRole("button", { name: "Run code" }));
-      advanceSeconds(1);
+      await advanceSecondsAsync(1);
 
       // Tab bar shows Error badge
       const tab = screen.getByRole("button", { name: /test result/i });
@@ -431,14 +475,14 @@ describe("App — full assessment flow", () => {
       ).toBeInTheDocument();
     });
 
-    test("runtime error displays Error badge on tab and Runtime Error inside panel", () => {
+    test("runtime error displays Error badge on tab and Runtime Error inside panel", async () => {
       render(<App />);
 
       const editor = screen.getByRole("textbox", { name: "Code editor" });
       fireEvent.change(editor, { target: { value: "int a = 1 / 0; // runtime-error" } });
 
       fireEvent.click(screen.getByRole("button", { name: "Run code" }));
-      advanceSeconds(1);
+      await advanceSecondsAsync(1);
 
       // Tab bar shows Error badge
       const tab = screen.getByRole("button", { name: /test result/i });
@@ -452,12 +496,12 @@ describe("App — full assessment flow", () => {
       expect(screen.getByText(/ArithmeticException: \/ by zero/)).toBeInTheDocument();
     });
 
-    test("previous output is cleared when changing questions", () => {
+    test("previous output is cleared when changing questions", async () => {
       render(<App />);
 
       // Run code on Question 1
       fireEvent.click(screen.getByRole("button", { name: "Run code" }));
-      advanceSeconds(1);
+      await advanceSecondsAsync(1);
       expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
 
       // Navigate to Question 2
@@ -472,12 +516,12 @@ describe("App — full assessment flow", () => {
       ).not.toBeInTheDocument();
     });
 
-    test("previous output is cleared when changing languages", () => {
+    test("previous output is cleared when changing languages", async () => {
       render(<App />);
 
       // Run code with default language (Java)
       fireEvent.click(screen.getByRole("button", { name: "Run code" }));
-      advanceSeconds(1);
+      await advanceSecondsAsync(1);
       expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
 
       // Change language to Python
@@ -530,7 +574,7 @@ describe("App — full assessment flow", () => {
       ).toBeDisabled();
     });
 
-    test("repeated clicks do not start multiple executions", () => {
+    test("repeated clicks do not start multiple executions", async () => {
       render(<App />);
 
       const runBtn = screen.getByRole("button", { name: "Run code" });
@@ -542,7 +586,7 @@ describe("App — full assessment flow", () => {
       // Second click while running
       fireEvent.click(runningBtn);
 
-      advanceSeconds(1);
+      await advanceSecondsAsync(1);
 
       expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Run code" })).toBeEnabled();
@@ -552,7 +596,7 @@ describe("App — full assessment flow", () => {
   // ─── Keyboard shortcuts ───────────────────────────────────────────────────────
 
   describe("keyboard shortcuts", () => {
-    test("Ctrl + Enter executes code (Windows / Linux)", () => {
+    test("Ctrl + Enter executes code (Windows / Linux)", async () => {
       render(<App />);
 
       fireEvent.keyDown(window, { key: "Enter", ctrlKey: true });
@@ -560,20 +604,20 @@ describe("App — full assessment flow", () => {
       // Changes to running state
       expect(screen.getByRole("button", { name: "Running…" })).toBeDisabled();
 
-      advanceSeconds(1);
+      await advanceSecondsAsync(1);
 
       expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Run code" })).toBeEnabled();
     });
 
-    test("⌘ + Enter executes code (macOS metaKey)", () => {
+    test("⌘ + Enter executes code (macOS metaKey)", async () => {
       render(<App />);
 
       fireEvent.keyDown(window, { key: "Enter", metaKey: true });
 
       expect(screen.getByRole("button", { name: "Running…" })).toBeDisabled();
 
-      advanceSeconds(1);
+      await advanceSecondsAsync(1);
 
       expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
     });
@@ -975,7 +1019,7 @@ describe("App — full assessment flow", () => {
       expect(editor).toHaveValue("// Q1 Java");
     });
 
-    test("Run uses the currently selected language", () => {
+    test("Run uses the currently selected language", async () => {
       render(<App />);
 
       const langSelect = screen.getByRole("combobox", {
@@ -992,9 +1036,7 @@ describe("App — full assessment flow", () => {
       ).toBeInTheDocument();
 
       // Complete execution
-      act(() => {
-        vi.advanceTimersByTime(1000);
-      });
+      await advanceSecondsAsync(1);
 
       // Result panel displays the executed language badge
       const resultRegion = screen.getByRole("region", {

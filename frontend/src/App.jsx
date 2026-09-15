@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import {
   ASSESSMENT_DURATION_SECONDS,
   SUPPORTED_LANGUAGES,
@@ -10,6 +10,7 @@ import {
 } from "./utils/languageUtils";
 import { useAssessmentTimer } from "./hooks/useAssessmentTimer";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
+import { executeCode } from "./services/executionApi";
 import AssessmentHeader from "./components/AssessmentHeader";
 import QuestionPanel from "./components/QuestionPanel";
 import EditorPanel from "./components/EditorPanel";
@@ -41,15 +42,6 @@ function App() {
     ASSESSMENT_DURATION_SECONDS
   );
 
-  // Prevent memory leaks if unmounted while mock execution is running
-  const runTimeoutRef = useRef(null);
-  useEffect(() => {
-    return () => {
-      if (runTimeoutRef.current) {
-        clearTimeout(runTimeoutRef.current);
-      }
-    };
-  }, []);
 
   // Derived state
   const isLocked = isSubmitted || isRunning || isTimeUp;
@@ -119,8 +111,10 @@ function App() {
     }));
   };
 
-  const handleRunCode = () => {
-    if (isLocked || isRunning) return;
+  const handleRunCode = async () => {
+    if (isLocked || isRunning) {
+      return;
+    }
 
     if (currentCode.trim() === "") {
       setExecutionResult({
@@ -133,35 +127,44 @@ function App() {
     }
 
     setIsRunning(true);
-    clearExecutionResult();
+    setExecutionResult(null);
 
-    // Simulate ~1 second of compilation / execution safely
-    runTimeoutRef.current = setTimeout(() => {
-      if (currentCode.includes("// compile-error")) {
-        setExecutionResult({
-          status: "error",
-          errorType: "compilation",
-          language: activeLanguageName,
-          error: `Solution.java:3: error: ';' expected\n        int target = 9\n                      ^\nSolution.java:5: error: cannot find symbol\n        return new int[]{0, 1}\n                              ^\n2 errors`,
-        });
-      } else if (currentCode.includes("// runtime-error")) {
-        setExecutionResult({
-          status: "error",
-          errorType: "runtime",
-          language: activeLanguageName,
-          error: `Exception in thread "main" java.lang.ArithmeticException: / by zero\n\tat Solution.twoSum(Solution.java:4)\n\tat Main.main(Main.java:12)`,
-        });
-      } else {
-        setExecutionResult({
-          status: "success",
-          language: activeLanguageName,
-          input: currentCustomInput,
-          output: "Mock execution completed",
-          executionTime: "15 ms",
-        });
-      }
+    try {
+      const result = await executeCode({
+        language: selectedLanguage,
+        sourceCode: currentCode,
+        stdin: currentCustomInput,
+      });
+
+      const errorType = result.compilationOutput
+        ? "compilation"
+        : result.stderr
+          ? "runtime"
+          : "error";
+
+      setExecutionResult({
+        status: result.status === "SUCCESS" ? "success" : "error",
+        errorType,
+        output: result.stdout,
+        error: result.compilationOutput || result.stderr,
+        executionTime: result.executionTimeMs,
+        memoryKb: result.memoryKb,
+        language: activeLanguageName || selectedLanguage,
+        input: currentCustomInput,
+        isMock: true,
+      });
+    } catch (error) {
+      setExecutionResult({
+        status: "error",
+        output: "",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unable to connect to the execution service",
+      });
+    } finally {
       setIsRunning(false);
-    }, 1000);
+    }
   };
 
   const handleSubmitClick = () => {

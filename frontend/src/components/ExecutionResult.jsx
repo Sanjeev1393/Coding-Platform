@@ -98,11 +98,15 @@ function ExecutionResult({
           <span className="text-sm font-semibold text-green-700">
             ✓ Success
           </span>
-          {result.executionTime && (
-            <span className="text-xs text-slate-500">
-              • Execution time: {result.executionTime}
-            </span>
-          )}
+          {result.executionTime !== undefined &&
+            result.executionTime !== null && (
+              <span className="text-xs text-slate-500">
+                • Execution time:{" "}
+                {typeof result.executionTime === "number"
+                  ? `${result.executionTime} ms`
+                  : result.executionTime}
+              </span>
+            )}
         </div>
         {result.language && (
           <span className="rounded bg-green-100 px-2 py-0.5 text-xs font-semibold text-green-800">
