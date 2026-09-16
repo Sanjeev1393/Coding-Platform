@@ -151,7 +151,7 @@ function App() {
         memoryKb: result.memoryKb,
         language: activeLanguageName || selectedLanguage,
         input: currentCustomInput,
-        isMock: true,
+        isMock: false,
       });
     } catch (error) {
       setExecutionResult({

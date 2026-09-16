@@ -55,9 +55,6 @@ function OutputPanel({
       <pre className="mt-1 rounded-md bg-white px-3 py-2 font-mono text-sm text-slate-800">
         {result.output}
       </pre>
-      <p className="mt-3 text-xs text-slate-400">
-        ⚠ Mock result — compiler not connected yet
-      </p>
     </div>
   );
 }

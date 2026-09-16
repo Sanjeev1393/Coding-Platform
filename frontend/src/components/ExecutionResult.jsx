@@ -132,10 +132,6 @@ function ExecutionResult({
           {result.output || "No output returned."}
         </pre>
       </div>
-
-      <p className="mt-3 text-xs text-slate-400">
-        ⚠ Mock result — compiler not connected yet
-      </p>
     </div>
   );
 }

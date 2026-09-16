@@ -1,37 +1,39 @@
 package com.codingplatform.backend.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import com.codingplatform.backend.dto.ExecutionRequest;
 import com.codingplatform.backend.dto.ExecutionResponse;
 import com.codingplatform.backend.dto.ExecutionStatus;
+import com.codingplatform.backend.provider.CodeExecutionProvider;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class ExecutionServiceTest {
 
-    private final ExecutionService executionService = new ExecutionService();
+    private CodeExecutionProvider codeExecutionProvider;
+    private ExecutionService executionService;
 
-    @Test
-    void shouldReturnMockSuccessResponse() {
-        ExecutionRequest request = new ExecutionRequest("java", "public class Main {}", "1 2");
-
-        ExecutionResponse response = executionService.execute(request);
-
-        assertEquals(ExecutionStatus.SUCCESS, response.status());
-        assertTrue(response.stdout().contains("Mock execution completed"));
-        assertTrue(response.stdout().contains("1 2"));
-        assertEquals("", response.stderr());
-        assertEquals("", response.compilationOutput());
+    @BeforeEach
+    void setUp() {
+        codeExecutionProvider = mock(CodeExecutionProvider.class);
+        executionService = new ExecutionService(codeExecutionProvider);
     }
 
     @Test
-    void shouldHandleMissingStandardInput() {
-        ExecutionRequest request = new ExecutionRequest("java", "public class Main {}", null);
+    void shouldDelegateExecutionToCodeExecutionProvider() {
+        ExecutionRequest request = new ExecutionRequest("java", "public class Main {}", "1 2");
+        ExecutionResponse expectedResponse =
+                new ExecutionResponse(ExecutionStatus.SUCCESS, "output result", "", "", 100, 2048);
 
-        ExecutionResponse response = executionService.execute(request);
+        when(codeExecutionProvider.execute(request)).thenReturn(expectedResponse);
 
-        assertEquals(ExecutionStatus.SUCCESS, response.status());
-        assertEquals("Mock execution completed", response.stdout());
+        ExecutionResponse actualResponse = executionService.execute(request);
+
+        assertEquals(expectedResponse, actualResponse);
+        verify(codeExecutionProvider).execute(request);
     }
 }

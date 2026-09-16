@@ -2,19 +2,19 @@ package com.codingplatform.backend.service;
 
 import com.codingplatform.backend.dto.ExecutionRequest;
 import com.codingplatform.backend.dto.ExecutionResponse;
-import com.codingplatform.backend.dto.ExecutionStatus;
+import com.codingplatform.backend.provider.CodeExecutionProvider;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ExecutionService {
 
+    private final CodeExecutionProvider codeExecutionProvider;
+
+    public ExecutionService(CodeExecutionProvider codeExecutionProvider) {
+        this.codeExecutionProvider = codeExecutionProvider;
+    }
+
     public ExecutionResponse execute(ExecutionRequest request) {
-        String output = "Mock execution completed";
-
-        if (request.stdin() != null && !request.stdin().isBlank()) {
-            output += System.lineSeparator() + "Input received: " + request.stdin();
-        }
-
-        return new ExecutionResponse(ExecutionStatus.SUCCESS, output, "", "", 15, 2048);
+        return codeExecutionProvider.execute(request);
     }
 }
