@@ -10,4 +10,11 @@ public record ExecutionRequest(
                         message = "Supported languages are java, javascript and python")
                 String language,
         @NotBlank(message = "Source code is required") String sourceCode,
-        String stdin) {}
+        String stdin,
+        FunctionSignature signature,
+        String sampleInput) {
+
+    public ExecutionRequest(String language, String sourceCode, String stdin) {
+        this(language, sourceCode, stdin, null, null);
+    }
+}

@@ -28,15 +28,33 @@ public class PistonExecutionProvider implements CodeExecutionProvider {
 
     private final RestClient restClient;
     private final PistonProperties properties;
+    private final com.codingplatform.backend.provider.piston.harness.HarnessGenerator
+            harnessGenerator;
 
     @Autowired
-    public PistonExecutionProvider(PistonProperties properties) {
-        this(createRestClient(RestClient.builder(), properties), properties);
+    public PistonExecutionProvider(
+            PistonProperties properties,
+            com.codingplatform.backend.provider.piston.harness.HarnessGenerator harnessGenerator) {
+        this(createRestClient(RestClient.builder(), properties), properties, harnessGenerator);
     }
 
     public PistonExecutionProvider(RestClient restClient, PistonProperties properties) {
+        this(
+                restClient,
+                properties,
+                new com.codingplatform.backend.provider.piston.harness.HarnessGenerator());
+    }
+
+    public PistonExecutionProvider(
+            RestClient restClient,
+            PistonProperties properties,
+            com.codingplatform.backend.provider.piston.harness.HarnessGenerator harnessGenerator) {
         this.restClient = restClient;
         this.properties = properties;
+        this.harnessGenerator =
+                harnessGenerator != null
+                        ? harnessGenerator
+                        : new com.codingplatform.backend.provider.piston.harness.HarnessGenerator();
     }
 
     private static RestClient createRestClient(
@@ -64,11 +82,14 @@ public class PistonExecutionProvider implements CodeExecutionProvider {
         }
 
         String stdin = request.stdin() != null ? request.stdin() : "";
+        List<PistonFile> executionFiles =
+                harnessGenerator.generateExecutionFiles(request, properties.fileName());
+
         PistonExecuteRequest pistonRequest =
                 new PistonExecuteRequest(
                         properties.language(),
                         properties.version(),
-                        List.of(new PistonFile(properties.fileName(), request.sourceCode())),
+                        executionFiles,
                         stdin,
                         properties.runTimeoutMs());
 
