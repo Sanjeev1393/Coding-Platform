@@ -134,6 +134,8 @@ function App() {
         language: selectedLanguage,
         sourceCode: currentCode,
         stdin: currentCustomInput,
+        signature: currentQuestion?.signature,
+        sampleInput: currentQuestion?.sampleInput,
       });
 
       const errorType = result.compilationOutput
