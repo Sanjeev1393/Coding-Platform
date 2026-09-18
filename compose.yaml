@@ -1,0 +1,80 @@
+services:
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "127.0.0.1:5173:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  backend:
+    build:
+      context: ./backend
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      PISTON_BASE_URL: http://piston:2000
+      PISTON_CONNECT_TIMEOUT_MS: "2000"
+      PISTON_RUN_TIMEOUT_MS: "6000"
+      PISTON_READ_TIMEOUT_MS: "10000"
+    depends_on:
+      piston:
+        condition: service_healthy
+      piston-init:
+        condition: service_completed_successfully
+
+  piston:
+    image: ghcr.io/engineer-man/piston:latest
+    privileged: true
+    tmpfs:
+      - /tmp:exec
+    ports:
+      - "127.0.0.1:2000:2000"
+    environment:
+      PISTON_RUN_TIMEOUT: 10000
+      PISTON_RUN_CPU_TIME: 10000
+    volumes:
+      - piston-packages:/piston/packages
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:2000/api/v2/runtimes')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+  piston-init:
+    image: ghcr.io/engineer-man/piston:latest
+    restart: "no"
+    depends_on:
+      piston:
+        condition: service_healthy
+    entrypoint: ["python3", "-c"]
+    command:
+      - |
+        import json, sys, time, urllib.request
+        for attempt in range(15):
+            try:
+                req = urllib.request.Request('http://piston:2000/api/v2/runtimes')
+                with urllib.request.urlopen(req, timeout=5) as res:
+                    runtimes = json.loads(res.read().decode())
+                    if any(r.get('language') == 'java' and r.get('version') == '15.0.2' for r in runtimes):
+                        print('Piston Java 15.0.2 runtime is ready.')
+                        sys.exit(0)
+                print('Installing Java 15.0.2 runtime in Piston...')
+                install_req = urllib.request.Request(
+                    'http://piston:2000/api/v2/packages',
+                    data=json.dumps({'language': 'java', 'version': '15.0.2'}).encode(),
+                    headers={'Content-Type': 'application/json'}
+                )
+                with urllib.request.urlopen(install_req, timeout=120) as res:
+                    print('Installed Java 15.0.2 successfully:', res.read().decode())
+                sys.exit(0)
+            except Exception as err:
+                print(f'Waiting for Piston to initialize (attempt {attempt + 1}/15): {err}')
+                time.sleep(2)
+        print('Failed to verify or install Piston Java runtime.')
+        sys.exit(1)
+
+volumes:
+  piston-packages:

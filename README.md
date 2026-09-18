@@ -32,12 +32,19 @@ A full-stack coding assessment platform for conducting timed programming tests a
   - [Execution Flow](#execution-flow)
   - [Backend Layer Design](#backend-layer-design)
 - [Project Structure](#project-structure)
-- [Running the Project Locally](#running-the-project-locally)
+- [Running with Docker Compose (Demo Mode)](#running-with-docker-compose-demo-mode)
   - [Prerequisites](#prerequisites)
-  - [1. Clone this repository](#1-clone-this-repository)
-  - [2. Start Piston](#2-start-piston)
-  - [3. Start the Spring Boot backend](#3-start-the-spring-boot-backend)
-  - [4. Start the React frontend](#4-start-the-react-frontend)
+  - [Quick Start](#quick-start)
+  - [Useful Compose Commands](#useful-compose-commands)
+  - [Service Architecture & DNS Resolution](#service-architecture--dns-resolution)
+- [Hybrid Local Development Mode](#hybrid-local-development-mode)
+  - [1. Start Piston via Compose](#1-start-piston-via-compose)
+  - [2. Start Spring Boot on Windows/Host](#2-start-spring-boot-on-windowshost)
+  - [3. Start React/Vite on Windows/Host](#3-start-reactvite-on-windowshost)
+  - [Network Address Differences](#network-address-differences)
+- [Piston Runtime Persistence & Bootstrap](#piston-runtime-persistence--bootstrap)
+- [Resource Usage & Monitoring](#resource-usage--monitoring)
+- [Troubleshooting](#troubleshooting)
 - [Configuration](#configuration)
 - [Running Tests](#running-tests)
   - [Frontend tests](#frontend-tests)
@@ -300,7 +307,8 @@ Coding-Platform/
 │   │   │   ├── LanguageSelector.jsx
 │   │   │   ├── OutputPanel.jsx
 │   │   │   ├── QuestionPanel.jsx
-│   │   │   └── StatusBanner.jsx
+│   │   │   ├── StatusBanner.jsx
+│   │   │   └── TestCasePanel.jsx
 │   │   ├── hooks/
 │   │   │   ├── useAssessmentTimer.js   # Countdown timer hook
 │   │   │   └── useKeyboardShortcuts.js # Cross-platform keyboard shortcuts hook
@@ -308,10 +316,14 @@ Coding-Platform/
 │   │   │   └── executionApi.js         # Backend REST API client
 │   │   ├── utils/
 │   │   │   ├── formatTime.js           # Time formatting utility
+│   │   │   ├── formatValue.js          # Value formatting utility
 │   │   │   ├── languageUtils.js        # Type mapping and signature generator
 │   │   │   └── resultValidator.js      # Output validation strategies
 │   │   ├── constants.js                # Questions, test cases, language configs
 │   │   └── App.jsx                     # Root assessment orchestration component
+│   ├── nginx.conf                      # Nginx reverse proxy & SPA fallback configuration
+│   ├── Dockerfile                      # Multi-stage build (Node 22 -> Nginx Alpine)
+│   ├── .dockerignore                   # Frontend build exclusions
 │   └── package.json
 │
 ├── backend/                            # Spring Boot application
@@ -336,120 +348,110 @@ Coding-Platform/
 │   │           └── harness/
 │   │               └── HarnessGenerator.java    # Dynamic test driver generator
 │   ├── src/test/
+│   ├── Dockerfile                      # Multi-stage build (Temurin JDK 21 -> JRE 21)
+│   ├── .dockerignore                   # Backend build exclusions
 │   ├── pom.xml
 │   └── mvnw.cmd
 │
+├── compose.yaml                        # Root Docker Compose multi-service orchestration
 └── README.md
 ```
 
 ---
 
-## Running the Project Locally
+## Running with Docker Compose (Demo Mode)
+
+The entire platform — React frontend, Spring Boot backend, Piston execution engine, and Java runtime package — can be built and launched with a single Docker Compose command.
 
 ### Prerequisites
 
-Install the following dependencies:
-
-- [Git](https://git-scm.com/)
-- [Node.js and npm](https://nodejs.org/) (LTS recommended)
-- [Java 21](https://adoptium.net/) (JDK 21)
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-- **WSL 2** — recommended when running Docker Desktop on Windows
-- Maven is optional; the Maven Wrapper (`.\mvnw.cmd` / `./mvnw`) is included
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (v24+ recommended)
+- **WSL 2** backend enabled on Windows
 
 ---
 
-### 1. Clone this repository
+### Quick Start
+
+Start all services in detached mode with automatic image building:
 
 ```bash
-git clone https://github.com/Sanjeev1393/Coding-Platform.git
-cd Coding-Platform
+docker compose up --build -d
 ```
+
+Once the startup completes and health checks transition to healthy:
+- **Frontend Application:** Open **[http://localhost:5173](http://localhost:5173)** in your browser.
+- **Backend Health Check:** **[http://localhost:8080/actuator/health](http://localhost:8080/actuator/health)**
+- **Piston Runtimes Endpoint:** **[http://127.0.0.1:2000/api/v2/runtimes](http://127.0.0.1:2000/api/v2/runtimes)**
 
 ---
 
-### 2. Start Piston
+### Useful Compose Commands
 
-Piston runs as an independent execution service in Docker. Clone and run it in a **separate directory outside the Coding-Platform repository** (for example, in your parent projects directory):
-
-```bash
-# Navigate outside the Coding-Platform repository
-cd ..
-git clone https://github.com/engineer-man/piston.git
-cd piston
-```
-
-**Configure Piston port binding and execution limits:**
-
-Open `docker-compose.yaml` inside the cloned `piston` directory and update the `api` service to:
-1. Bind the port to `127.0.0.1` so Piston is only reachable from your local machine.
-2. Increase Piston's server-side execution limits (`PISTON_RUN_TIMEOUT` and `PISTON_RUN_CPU_TIME`) to `10000` ms. A fresh Piston installation defaults to a 3000 ms ceiling, which would otherwise reject our backend's 6000 ms execution request with `run_timeout cannot exceed the configured limit of 3000`.
-
-```yaml
-# docker-compose.yaml (inside the piston/ directory)
-services:
-  api:
-    ports:
-      - "127.0.0.1:2000:2000"   # was: - "2000:2000"
-    environment:
-      PISTON_RUN_TIMEOUT: 10000
-      PISTON_RUN_CPU_TIME: 10000
-```
-
-> **Container vs. Application Variables:** `PISTON_RUN_TIMEOUT` and `PISTON_RUN_CPU_TIME` configure the **Piston container** server limits (the maximum execution duration Piston allows any caller to request). In contrast, `PISTON_RUN_TIMEOUT_MS` configures the **Spring Boot backend** application (the timeout requested per execution). They configure two separate applications.
-
-**Start (or recreate) the Piston container:**
-
-```bash
-docker compose up -d --force-recreate api
-```
-
-**Install the Java runtime via Piston's package manager:**
-
-```bash
-cd cli
-npm install
-node index.js ppman install java
-cd ..
-```
-
-**Verify the runtime installation:**
-
-```bash
-curl http://127.0.0.1:2000/api/v2/runtimes
-```
-
-The returned JSON array should include `java` version `15.0.2`.
-
-> Refer to the [official Piston documentation](https://github.com/engineer-man/piston) if installation procedures change.
+| Action | Command |
+|---|---|
+| View container status and health | `docker compose ps` |
+| View live aggregated logs | `docker compose logs -f` |
+| View logs for a specific service | `docker compose logs -f backend` (or `frontend`, `piston`) |
+| Inspect real-time resource consumption | `docker stats --no-stream` |
+| Stop all containers safely | `docker compose down` |
+| Stop containers and delete volumes | `docker compose down -v` *(Warning: removes installed Piston runtimes)* |
 
 ---
 
-### 3. Start the Spring Boot backend
+### Service Architecture & DNS Resolution
 
-Open a new terminal and navigate to the `backend` directory inside `Coding-Platform`:
+Inside Docker Compose, services communicate over a private bridge network (`personalproject_default`) using Docker's internal DNS resolver:
 
-**Windows (PowerShell):**
+```
+Browser Client
+     │  http://localhost:5173
+     ▼
+Frontend Container (Nginx on port 80, mapped to host 127.0.0.1:5173)
+     │  Proxies /api/* to http://backend:8080/* (Docker internal DNS)
+     ▼
+Backend Container (Spring Boot JRE 21 on port 8080, mapped to host 127.0.0.1:8080)
+     │  Calls http://piston:2000/api/v2/execute (Docker internal DNS)
+     ▼
+Piston Execution Sandbox (Piston on port 2000, mapped to host 127.0.0.1:2000)
+```
+
+- **Browser to Backend:** The browser only talks to `http://localhost:5173`. Nginx transparently proxies all `/api/*` traffic to the backend container (`http://backend:8080`). The browser never needs to resolve the Docker hostname `backend`.
+- **Backend to Piston:** Inside the container, the backend reaches Piston via `http://piston:2000` (configured via `PISTON_BASE_URL` in `compose.yaml`).
+
+---
+
+## Hybrid Local Development Mode
+
+If you prefer developing code locally with fast hot-reloading (Vite HMR for React and Spring Boot devtools for Java), you can run Piston inside Docker while running frontend and backend directly on your Windows/host machine:
+
+### 1. Start Piston via Compose
+
+Start only the Piston execution engine (and its initialization helper):
+
+```bash
+docker compose up -d piston
+```
+
+Piston binds to `127.0.0.1:2000` on your host machine.
+
+### 2. Start Spring Boot on Windows/Host
+
+Open a terminal in the `backend/` directory:
 
 ```powershell
 cd backend
 .\mvnw.cmd spring-boot:run
 ```
 
-**macOS / Linux:**
-
-```bash
-cd backend
-./mvnw spring-boot:run
+The local backend automatically reads its default configuration from `application.properties`:
+```properties
+execution.piston.base-url=${PISTON_BASE_URL:http://127.0.0.1:2000}
 ```
+Because no `PISTON_BASE_URL` override is needed, the local backend immediately communicates with the containerized Piston at `127.0.0.1:2000`.
 
-The backend starts at: **http://localhost:8080**
+### 3. Start React/Vite on Windows/Host
 
----
-
-### 4. Start the React frontend
-
-Open another terminal and navigate to the `frontend` directory inside `Coding-Platform`:
+Open a terminal in the `frontend/` directory:
 
 ```bash
 cd frontend
@@ -457,7 +459,105 @@ npm install
 npm run dev
 ```
 
-Open **http://localhost:5173** in your browser.
+Open **http://localhost:5173** in your browser. Vite's local development server proxies `/api` calls to `http://localhost:8080` without requiring changes to JavaScript code.
+
+---
+
+### Network Address Differences
+
+| Workflow Mode | Backend `PISTON_BASE_URL` | Why? |
+|---|---|---|
+| **Local Development** | `http://127.0.0.1:2000` | Host process communicates with Docker's published port on the host loopback interface (`127.0.0.1`). |
+| **Docker Compose Mode** | `http://piston:2000` | The backend container communicates with the Piston container across the Compose bridge network using service-name DNS resolution (`piston`). |
+
+> **Important:** `localhost` inside a Docker container refers exclusively to that container's own network namespace, **not** your laptop or sibling containers. Hence, the containerized backend must use `http://piston:2000`, not `localhost:2000`. No code changes are required: `application.properties` specifies `${PISTON_BASE_URL:http://127.0.0.1:2000}`, which defaults to `127.0.0.1:2000` for local runs and is set to `http://piston:2000` in `compose.yaml`.
+
+---
+
+## Piston Runtime Persistence & Bootstrap
+
+Piston runs isolated compilers and interpreters from its `/piston/packages` directory. In our `compose.yaml`, this directory is mounted to a named Docker volume (`piston-packages`).
+
+### Automated Initialization
+
+When starting the stack via `docker compose up -d`:
+1. The `piston-init` service waits for Piston to report healthy.
+2. It queries `http://piston:2000/api/v2/runtimes`.
+3. If Java `15.0.2` is not yet installed in the volume, `piston-init` calls Piston's package API (`POST /api/v2/packages`) to download and register Java `15.0.2`.
+4. Once verified, `piston-init` exits `0`, and Spring Boot starts.
+5. On all subsequent startups, `piston-init` detects that Java `15.0.2` is already present and exits in milliseconds without downloading anything.
+
+### Manual Bootstrap (Optional Fallback)
+
+If you ever start Piston without `piston-init` or want to install runtimes manually from the host terminal, send a POST request directly to Piston:
+
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:2000/api/v2/packages" -Method Post -ContentType "application/json" -Body '{"language":"java","version":"15.0.2"}'
+```
+
+Verify installed runtimes:
+```powershell
+Invoke-RestMethod -Uri "http://127.0.0.1:2000/api/v2/runtimes"
+```
+
+---
+
+## Resource Usage & Monitoring
+
+To monitor container memory and CPU footprint across the Compose stack, run:
+
+```bash
+docker stats --no-stream
+```
+
+Typical idle baseline metrics:
+
+| Container | Image | Memory Usage | Memory % | Role |
+|---|---|---|---|---|
+| `personalproject-frontend-1` | `personalproject-frontend` (Nginx) | ~8 MiB | 0.11% | Static asset server & reverse proxy |
+| `personalproject-backend-1` | `personalproject-backend` (Spring Boot) | ~220 MiB | 2.8% | REST API, validation, test harness generator |
+| `personalproject-piston-1` | `piston:latest` (Node + Isolate) | ~270 MiB | 3.5% | Code execution sandbox & compiler runner |
+
+> **Note on Docker Resource Usage:** Docker containers share the host Linux kernel (via WSL 2 on Windows) but maintain their own processes, userland tools, and JVM/Node heaps. Containerization provides process and network isolation rather than reducing laptop RAM usage.
+
+---
+
+## Troubleshooting
+
+### 1. Port `5173`, `8080`, or `2000` already in use
+- **Cause:** A local dev process (`npm run dev`, `mvnw`, or a previous standalone Piston container) is already bound to that port.
+- **Fix (PowerShell):** Find the listening PID and stop it:
+  ```powershell
+  netstat -ano | findstr ":5173 :8080 :2000"
+  Stop-Process -Id <PID> -Force
+  ```
+  If an older Docker container is holding port 2000:
+  ```bash
+  docker stop piston_api
+  ```
+
+### 2. Piston runtime list is empty
+- **Cause:** Piston was started with a fresh volume before the runtime was initialized.
+- **Fix:** Run the bootstrap command:
+  ```powershell
+  Invoke-RestMethod -Uri "http://127.0.0.1:2000/api/v2/packages" -Method Post -ContentType "application/json" -Body '{"language":"java","version":"15.0.2"}'
+  ```
+
+### 3. Backend cannot resolve `piston`
+- **Cause:** The backend container is running outside the Compose network or `PISTON_BASE_URL` was overridden with `localhost`.
+- **Fix:** Ensure both services are defined in `compose.yaml` under the same network and verify container status with `docker compose ps`.
+
+### 4. Frontend receives a `502 Bad Gateway`
+- **Cause:** Nginx started before Spring Boot finished its context initialization.
+- **Fix:** Our `compose.yaml` uses `depends_on` with `condition: service_healthy` based on Spring Boot's `/actuator/health` probe. If you encounter a temporary 502, check `docker compose logs backend` to confirm the Spring application started.
+
+### 5. Docker Desktop / WSL 2 is not running
+- **Cause:** Docker daemon is stopped or unreachable.
+- **Fix:** Start Docker Desktop and confirm `docker ps` returns successfully.
+
+### 6. Cold Java execution reaches a timeout
+- **Cause:** The very first Java compilation inside a fresh container may take 2–3 seconds due to JVM JIT warmup and class loading.
+- **Fix:** Piston server limits are configured to `10000` ms (`PISTON_RUN_TIMEOUT=10000`), and backend read timeout is set to `10000` ms (`PISTON_READ_TIMEOUT_MS=10000`), allowing sufficient headroom for cold runs. Subsequent runs typically complete in under 1 second.
 
 ---
 
