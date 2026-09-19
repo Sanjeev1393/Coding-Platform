@@ -284,4 +284,97 @@ describe("QuestionPanel", () => {
       expect(nextBtn.className).toMatch(/focus-visible:ring-2/);
     });
   });
+
+  describe("example test cases and explanations", () => {
+    const questionWithExamples = {
+      id: "two-sum",
+      title: "Two Sum",
+      description: "Find two numbers that add up to target.",
+      testCases: {
+        visible: [
+          {
+            id: "case-1",
+            inputs: { nums: [2, 7, 11, 15], target: 9 },
+            expectedOutput: [0, 1],
+            explanation: "Because nums[0] + nums[1] == 9, we return [0, 1].",
+          },
+          {
+            id: "case-2",
+            inputs: { nums: [3, 2, 4], target: 6 },
+            expectedOutput: [1, 2],
+            explanation: "Because nums[1] + nums[2] == 6, we return [1, 2].",
+          },
+          {
+            id: "case-3",
+            inputs: { nums: [3, 3], target: 6 },
+            expectedOutput: [0, 1],
+            explanation: "Third case should not be shown.",
+          },
+        ],
+      },
+    };
+
+    test("renders both example 1 and example 2 headings", () => {
+      renderPanel({ question: questionWithExamples });
+      expect(
+        screen.getByRole("heading", { name: "Example 1:" })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Example 2:" })
+      ).toBeInTheDocument();
+    });
+
+    test("limits examples to at most two even when more are defined", () => {
+      renderPanel({ question: questionWithExamples });
+      expect(
+        screen.queryByRole("heading", { name: "Example 3:" })
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Third case should not be shown.")
+      ).not.toBeInTheDocument();
+    });
+
+    test("displays input, expected output, and explanation for both examples", () => {
+      renderPanel({ question: questionWithExamples });
+
+      expect(
+        screen.getByText("nums = [2, 7, 11, 15], target = 9")
+      ).toBeInTheDocument();
+      expect(screen.getByText("[0, 1]")).toBeInTheDocument();
+      expect(
+        screen.getByText("Because nums[0] + nums[1] == 9, we return [0, 1].")
+      ).toBeInTheDocument();
+
+      expect(
+        screen.getByText("nums = [3, 2, 4], target = 6")
+      ).toBeInTheDocument();
+      expect(screen.getByText("[1, 2]")).toBeInTheDocument();
+      expect(
+        screen.getByText("Because nums[1] + nums[2] == 6, we return [1, 2].")
+      ).toBeInTheDocument();
+    });
+
+    test("renders example without explanation block if explanation is omitted", () => {
+      const questionWithoutExpl = {
+        id: "simple",
+        title: "Simple",
+        testCases: {
+          visible: [
+            {
+              id: "case-1",
+              inputs: { x: 1 },
+              expectedOutput: 2,
+            },
+          ],
+        },
+      };
+
+      renderPanel({ question: questionWithoutExpl });
+      expect(
+        screen.getByRole("heading", { name: "Example 1:" })
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/Explanation:/i)).not.toBeInTheDocument();
+    });
+  });
 });
+
