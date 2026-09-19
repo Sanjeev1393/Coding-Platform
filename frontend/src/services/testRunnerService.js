@@ -1,4 +1,4 @@
-import { executeCode } from "./executionApi";
+import { executeCode, submitCode } from "./executionApi";
 import { validateResult } from "../utils/resultValidator";
 
 /**
@@ -143,3 +143,91 @@ export async function runQuestionTestCases({
     };
   }
 }
+
+/**
+ * Submits a question solution to the backend EvaluationService for automated judging.
+ * Evaluates visible and hidden test cases, returning granular results and overall verdict.
+ *
+ * @param {Object} params
+ * @param {Object} params.question - Active question metadata
+ * @param {string} params.language - Language ID (e.g. 'java')
+ * @param {string} params.sourceCode - Solution source code
+ * @param {string} [params.activeLanguageName=""] - Display name of the active language
+ * @returns {Promise<Object>} Formatted evaluation result
+ */
+export async function submitQuestionSolution({
+  question,
+  language,
+  sourceCode,
+  activeLanguageName = "",
+}) {
+  const displayLanguage = activeLanguageName || language;
+
+  try {
+    const result = await submitCode({
+      questionId: question.id,
+      language,
+      sourceCode,
+    });
+
+    if (result.status === "COMPILATION_ERROR") {
+      return {
+        status: "error",
+        errorType: "compilation",
+        error: result.errorMessage || "Compilation failed.",
+        language: displayLanguage,
+        isSubmission: true,
+      };
+    }
+
+    if (
+      result.status === "RUNTIME_ERROR" &&
+      result.passed === 0 &&
+      (!result.testCases || result.testCases.length === 0)
+    ) {
+      return {
+        status: "error",
+        errorType: "runtime",
+        error: result.errorMessage || "Runtime error occurred.",
+        language: displayLanguage,
+        isSubmission: true,
+      };
+    }
+
+    const evaluatedCases = (result.testCases || []).map((tc) => ({
+      id: tc.id,
+      name: tc.name,
+      passed: tc.status === "PASSED",
+      hidden: Boolean(tc.hidden),
+      inputs: tc.input,
+      output: tc.actualOutput,
+      expected: tc.expectedOutput,
+      status: tc.status,
+    }));
+
+    const isAccepted = result.status === "SUCCESS";
+
+    return {
+      status: isAccepted ? "accepted" : "wrong_answer",
+      verdict: isAccepted ? "ACCEPTED" : result.status,
+      passedCount: result.passed,
+      totalCount: result.total,
+      cases: evaluatedCases,
+      executionTime: result.totalExecutionTimeMs,
+      memoryKb: result.maxMemoryKb,
+      language: displayLanguage,
+      isSubmission: true,
+    };
+  } catch (error) {
+    return {
+      status: "error",
+      output: "",
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unable to connect to the evaluation service",
+      isSubmission: true,
+    };
+  }
+}
+
