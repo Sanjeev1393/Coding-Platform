@@ -30,9 +30,49 @@ vi.mock("./services/executionApi", () => ({
         memoryKb: 1024,
       });
     }
+    if (sourceCode.includes("// wrong-answer")) {
+      return Promise.resolve({
+        status: "SUCCESS",
+        stdout: "[99, 99]",
+        compilationOutput: "",
+        stderr: "",
+        executionTimeMs: 15,
+        memoryKb: 2048,
+      });
+    }
+    if (payload?.stdin?.includes("3, 2, 4")) {
+      return Promise.resolve({
+        status: "SUCCESS",
+        stdout: "[1, 2]",
+        compilationOutput: "",
+        stderr: "",
+        executionTimeMs: 15,
+        memoryKb: 2048,
+      });
+    }
+    if (payload?.stdin?.includes("world")) {
+      return Promise.resolve({
+        status: "SUCCESS",
+        stdout: '"dlrow"',
+        compilationOutput: "",
+        stderr: "",
+        executionTimeMs: 15,
+        memoryKb: 2048,
+      });
+    }
+    if (payload?.stdin?.includes("hello")) {
+      return Promise.resolve({
+        status: "SUCCESS",
+        stdout: '"olleh"',
+        compilationOutput: "",
+        stderr: "",
+        executionTimeMs: 15,
+        memoryKb: 2048,
+      });
+    }
     return Promise.resolve({
       status: "SUCCESS",
-      stdout: "Mock execution completed",
+      stdout: "[0, 1]",
       compilationOutput: "",
       stderr: "",
       executionTimeMs: 15,
@@ -225,7 +265,7 @@ describe("App — full assessment flow", () => {
 
       // Execution result appears for Question 1
       expect(
-        screen.getByText("Mock execution completed")
+        screen.getByText(/✓ Accepted/)
       ).toBeInTheDocument();
 
       // Navigate to Question 2
@@ -236,7 +276,7 @@ describe("App — full assessment flow", () => {
         screen.queryByRole("region", { name: "Execution result" })
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByText("Mock execution completed")
+        screen.queryByText(/✓ Accepted/)
       ).not.toBeInTheDocument();
 
       // Navigate back to Question 1: result should remain cleared on navigation
@@ -273,60 +313,42 @@ describe("App — full assessment flow", () => {
   // ─── Code execution ──────────────────────────────────────────────────────────
 
   describe("code execution", () => {
-    test("custom input accepts text", () => {
+    test("testcase tab displays visible test cases and parameters", () => {
       render(<App />);
 
-      // Expand Custom Input tab
-      fireEvent.click(screen.getByRole("button", { name: /custom input/i }));
+      // Expand Testcase tab
+      fireEvent.click(screen.getByRole("button", { name: /testcase/i }));
 
-      const customInput = screen.getByRole("textbox", { name: "Custom Input" });
-      expect(customInput).toHaveValue("");
-
-      fireEvent.change(customInput, { target: { value: "10 20\n30" } });
-      expect(customInput).toHaveValue("10 20\n30");
+      expect(screen.getByRole("tab", { name: "Case 1" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Case 2" })).toBeInTheDocument();
+      expect(screen.getByText("nums =")).toBeInTheDocument();
+      expect(screen.getByText("target =")).toBeInTheDocument();
     });
 
-    test("each question preserves its own custom input across navigation", () => {
+    test("each question displays its own test cases across navigation and preserves active case", () => {
       render(<App />);
 
-      // Expand Custom Input on Question 1
-      fireEvent.click(screen.getByRole("button", { name: /custom input/i }));
-      const customInputQ1 = screen.getByRole("textbox", {
-        name: "Custom Input",
-      });
-      fireEvent.change(customInputQ1, { target: { value: "Q1 custom testcase" } });
-      expect(customInputQ1).toHaveValue("Q1 custom testcase");
+      // Expand Testcase on Question 1
+      fireEvent.click(screen.getByRole("button", { name: /testcase/i }));
+      expect(screen.getByText("nums =")).toBeInTheDocument();
+
+      // Switch to Case 2 on Question 1
+      fireEvent.click(screen.getByRole("tab", { name: "Case 2" }));
+      expect(screen.getByText("[3, 2, 4]")).toBeInTheDocument();
 
       // Navigate to Question 2
       fireEvent.click(screen.getByRole("button", { name: "Next" }));
 
-      // Question 2 should have empty custom input
-      const toggleQ2 = screen.getByRole("button", { name: /custom input/i });
+      // Question 2 should have Question 2's parameters (s =)
+      const toggleQ2 = screen.getByRole("button", { name: /testcase/i });
       fireEvent.click(toggleQ2);
-      const customInputQ2 = screen.getByRole("textbox", {
-        name: "Custom Input",
-      });
-      expect(customInputQ2).toHaveValue("");
+      expect(screen.getByText("s =")).toBeInTheDocument();
 
-      // Provide custom input for Question 2
-      fireEvent.change(customInputQ2, { target: { value: "Q2 custom testcase" } });
-      expect(customInputQ2).toHaveValue("Q2 custom testcase");
-
-      // Navigate back to Question 1: Question 1's custom input is preserved
+      // Navigate back to Question 1: Question 1's selected Case 2 is preserved
       fireEvent.click(screen.getByRole("button", { name: "Previous" }));
-      const toggleQ1Back = screen.getByRole("button", { name: /custom input/i });
+      const toggleQ1Back = screen.getByRole("button", { name: /testcase/i });
       fireEvent.click(toggleQ1Back);
-      expect(
-        screen.getByRole("textbox", { name: "Custom Input" })
-      ).toHaveValue("Q1 custom testcase");
-
-      // Navigate to Question 2: Question 2's custom input is preserved
-      fireEvent.click(screen.getByRole("button", { name: "Next" }));
-      const toggleQ2Back = screen.getByRole("button", { name: /custom input/i });
-      fireEvent.click(toggleQ2Back);
-      expect(
-        screen.getByRole("textbox", { name: "Custom Input" })
-      ).toHaveValue("Q2 custom testcase");
+      expect(screen.getByText("[3, 2, 4]")).toBeInTheDocument();
     });
 
     test("output panel is hidden initially until code is executed", () => {
@@ -352,15 +374,8 @@ describe("App — full assessment flow", () => {
       await advanceSecondsAsync(1);
     });
 
-    test("mock output appears after execution with language, custom input, and timing", async () => {
+    test("accepted output appears after execution with language, test case breakdown, and timing", async () => {
       render(<App />);
-
-      // Expand Custom Input tab
-      fireEvent.click(screen.getByRole("button", { name: /custom input/i }));
-
-      // Provide custom input
-      const customInput = screen.getByRole("textbox", { name: "Custom Input" });
-      fireEvent.change(customInput, { target: { value: "test input" } });
 
       // Run code
       fireEvent.click(screen.getByRole("button", { name: "Run code" }));
@@ -371,12 +386,30 @@ describe("App — full assessment flow", () => {
         name: "Execution result",
       });
       expect(resultRegion).toBeInTheDocument();
-      expect(screen.getByText("✓ Success")).toBeInTheDocument();
+      expect(screen.getByText(/✓ Accepted/)).toBeInTheDocument();
       expect(resultRegion).toHaveTextContent("Java");
-      expect(screen.getByText(/Execution time: 15 ms/)).toBeInTheDocument();
-      expect(within(resultRegion).getByText("test input")).toBeInTheDocument();
-      expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
+      expect(screen.getByText(/Execution time: 30 ms/)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Run code" })).toBeEnabled();
+    });
+
+    test("wrong answer is flagged when solution returns incorrect output with Expected vs Actual", async () => {
+      render(<App />);
+
+      const editor = screen.getByRole("textbox", { name: "Code editor" });
+      fireEvent.change(editor, {
+        target: { value: "class Solution { // wrong-answer \n}" },
+      });
+
+      fireEvent.click(screen.getByRole("button", { name: "Run code" }));
+      await advanceSecondsAsync(1);
+
+      const resultRegion = screen.getByRole("region", {
+        name: "Execution result",
+      });
+      expect(within(resultRegion).getByText(/✗ Wrong Answer/)).toBeInTheDocument();
+      expect(within(resultRegion).getByText("Your Output")).toBeInTheDocument();
+      expect(within(resultRegion).getByText("[99, 99]")).toBeInTheDocument();
+      expect(within(resultRegion).getByText("Expected Output")).toBeInTheDocument();
     });
 
     test("header displays 'DSA Coding Assessment' as test name", () => {
@@ -384,7 +417,7 @@ describe("App — full assessment flow", () => {
       expect(screen.getByText("DSA Coding Assessment")).toBeInTheDocument();
     });
 
-    test("when output appears, user can easily reopen Custom Input and update it", async () => {
+    test("when output appears, user can easily reopen Testcase and view cases", async () => {
       render(<App />);
 
       // Run code to produce output
@@ -392,27 +425,15 @@ describe("App — full assessment flow", () => {
       await advanceSecondsAsync(1);
 
       // Output appears
-      expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
+      expect(screen.getByText(/✓ Accepted/)).toBeInTheDocument();
 
-      // User can easily reopen Custom Input
-      const toggleBtn = screen.getByRole("button", { name: /custom input/i });
+      // User can easily reopen Testcase tab
+      const toggleBtn = screen.getByRole("button", { name: /testcase/i });
       expect(toggleBtn).toBeEnabled();
       fireEvent.click(toggleBtn);
 
-      // Custom input textarea expands and accepts new data
-      const textarea = screen.getByRole("textbox", { name: "Custom Input" });
-      expect(textarea).toBeInTheDocument();
-      fireEvent.change(textarea, { target: { value: "edge case [1, 2]" } });
-      expect(textarea).toHaveValue("edge case [1, 2]");
-
-      // Re-running code incorporates the new input into the result
-      fireEvent.click(screen.getByRole("button", { name: "Run code" }));
-      await advanceSecondsAsync(1);
-
-      const resultRegion = screen.getByRole("region", {
-        name: "Execution result",
-      });
-      expect(within(resultRegion).getByText("edge case [1, 2]")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Case 1" })).toBeInTheDocument();
+      expect(screen.getByText("nums =")).toBeInTheDocument();
     });
 
     test("empty code cannot be executed and displays validation error", () => {
@@ -433,7 +454,7 @@ describe("App — full assessment flow", () => {
         screen.queryByRole("button", { name: "Running…" })
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByText("Mock execution completed")
+        screen.queryByText(/✓ Accepted/)
       ).not.toBeInTheDocument();
     });
 
@@ -502,7 +523,7 @@ describe("App — full assessment flow", () => {
       // Run code on Question 1
       fireEvent.click(screen.getByRole("button", { name: "Run code" }));
       await advanceSecondsAsync(1);
-      expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
+      expect(screen.getByText(/✓ Accepted/)).toBeInTheDocument();
 
       // Navigate to Question 2
       fireEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -512,7 +533,7 @@ describe("App — full assessment flow", () => {
         screen.queryByRole("region", { name: "Execution result" })
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByText("Mock execution completed")
+        screen.queryByText(/✓ Accepted/)
       ).not.toBeInTheDocument();
     });
 
@@ -522,7 +543,7 @@ describe("App — full assessment flow", () => {
       // Run code with default language (Java)
       fireEvent.click(screen.getByRole("button", { name: "Run code" }));
       await advanceSecondsAsync(1);
-      expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
+      expect(screen.getByText(/✓ Accepted/)).toBeInTheDocument();
 
       // Change language to Python
       const langSelect = screen.getByRole("combobox", {
@@ -535,7 +556,7 @@ describe("App — full assessment flow", () => {
         screen.queryByRole("region", { name: "Execution result" })
       ).not.toBeInTheDocument();
       expect(
-        screen.queryByText("Mock execution completed")
+        screen.queryByText(/✓ Accepted/)
       ).not.toBeInTheDocument();
     });
 
@@ -552,10 +573,10 @@ describe("App — full assessment flow", () => {
           screen.getByRole("button", { name: "Submit solution" })
         ).toBeDisabled();
         expect(
-          screen.getByRole("button", { name: /custom input/i })
+          screen.getByRole("button", { name: /testcase/i })
         ).toBeDisabled();
       },
-      15000
+      30000
     );
 
     test("run is unavailable after submission", () => {
@@ -570,7 +591,7 @@ describe("App — full assessment flow", () => {
         screen.getByRole("button", { name: "Submit solution" })
       ).toBeDisabled();
       expect(
-        screen.getByRole("button", { name: /custom input/i })
+        screen.getByRole("button", { name: /testcase/i })
       ).toBeDisabled();
     });
 
@@ -588,7 +609,7 @@ describe("App — full assessment flow", () => {
 
       await advanceSecondsAsync(1);
 
-      expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
+      expect(screen.getByText(/✓ Accepted/)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Run code" })).toBeEnabled();
     });
   });
@@ -606,7 +627,7 @@ describe("App — full assessment flow", () => {
 
       await advanceSecondsAsync(1);
 
-      expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
+      expect(screen.getByText(/✓ Accepted/)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Run code" })).toBeEnabled();
     });
 
@@ -619,7 +640,7 @@ describe("App — full assessment flow", () => {
 
       await advanceSecondsAsync(1);
 
-      expect(screen.getByText("Mock execution completed")).toBeInTheDocument();
+      expect(screen.getByText(/✓ Accepted/)).toBeInTheDocument();
     });
 
     test("Ctrl + Shift + Enter opens submission confirmation dialog", () => {

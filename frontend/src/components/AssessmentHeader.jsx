@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 function AssessmentHeader({
   testName = "DSA Coding Assessment",
   formattedTime,
@@ -27,4 +29,4 @@ function AssessmentHeader({
   );
 }
 
-export default AssessmentHeader;
+export default memo(AssessmentHeader);

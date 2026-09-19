@@ -1,3 +1,5 @@
+import { memo } from "react";
+
 function QuestionPanel({
   question,
   questionNumber,
@@ -61,4 +63,4 @@ function QuestionPanel({
   );
 }
 
-export default QuestionPanel;
+export default memo(QuestionPanel);

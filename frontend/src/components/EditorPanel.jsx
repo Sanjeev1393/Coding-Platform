@@ -20,6 +20,9 @@ function EditorPanel({
   executionResult = null,
   activeLanguageName = "",
   currentQuestionIndex = 0,
+  testCases = [],
+  selectedCaseIndex = 0,
+  onSelectCase,
   children,
 }) {
   return (
@@ -54,6 +57,9 @@ function EditorPanel({
 
       <ConsoleTabs
         key={questionId}
+        testCases={testCases}
+        selectedCaseIndex={selectedCaseIndex}
+        onSelectCase={onSelectCase}
         customInput={customInput}
         onCustomInputChange={onCustomInputChange}
         disabled={isLocked}

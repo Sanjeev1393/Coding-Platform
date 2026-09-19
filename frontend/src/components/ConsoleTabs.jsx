@@ -1,15 +1,16 @@
 import { useState } from "react";
 import ConsoleTabBar from "./ConsoleTabBar";
-import CustomInputPanel from "./CustomInputPanel";
+import TestCasePanel from "./TestCasePanel";
 import ExecutionResult from "./ExecutionResult";
 
 /**
- * ConsoleTabs orchestrates the candidate's custom input and test execution result
+ * ConsoleTabs orchestrates the candidate's test cases and test execution result
  * in a unified, tabbed interface below the code editor.
  *
  * @param {Object} props
- * @param {string} props.customInput - Stored custom input for the active question.
- * @param {Function} props.onCustomInputChange - Change handler for custom input textarea.
+ * @param {Array<Object>} props.testCases - Visible test cases for the active question.
+ * @param {number} props.selectedCaseIndex - Currently selected test case index.
+ * @param {Function} props.onSelectCase - Callback when a test case is selected.
  * @param {boolean} props.disabled - True if assessment is locked/expired/submitted.
  * @param {boolean} props.isRunning - True while code is executing.
  * @param {Object|null} props.executionResult - Result object ({ status, output, error, ... }).
@@ -18,8 +19,9 @@ import ExecutionResult from "./ExecutionResult";
  * @param {boolean} props.defaultOpen - Initial open state (default: false).
  */
 function ConsoleTabs({
-  customInput = "",
-  onCustomInputChange,
+  testCases = [],
+  selectedCaseIndex = 0,
+  onSelectCase,
   disabled = false,
   isRunning = false,
   executionResult = null,
@@ -30,14 +32,10 @@ function ConsoleTabs({
   const hasResult =
     Boolean(executionResult) && executionResult.status !== "idle";
   const shouldOpenInitially = defaultOpen || isRunning || hasResult;
-  const initialActiveTab = isRunning || hasResult ? "result" : "input";
+  const initialActiveTab = isRunning || hasResult ? "result" : "testcase";
 
   const [isOpen, setIsOpen] = useState(shouldOpenInitially);
   const [activeTab, setActiveTab] = useState(initialActiveTab);
-
-  const isSuccess = executionResult?.status === "success";
-  const isError = executionResult?.status === "error";
-  const hasInput = typeof customInput === "string" && customInput.trim() !== "";
 
   const [prevRunState, setPrevRunState] = useState({ isRunning, hasResult });
   if (
@@ -51,13 +49,13 @@ function ConsoleTabs({
     }
   }
 
-  const handleSelectInputTab = () => {
+  const handleSelectTestcaseTab = () => {
     if (disabled) return;
-    if (isOpen && activeTab === "input") {
+    if (isOpen && activeTab === "testcase") {
       setIsOpen(false);
     } else {
       setIsOpen(true);
-      setActiveTab("input");
+      setActiveTab("testcase");
     }
   };
 
@@ -81,27 +79,26 @@ function ConsoleTabs({
       <ConsoleTabBar
         isOpen={isOpen}
         activeTab={activeTab}
-        hasInput={hasInput}
         hasResult={hasResult}
         isRunning={isRunning}
-        isSuccess={isSuccess}
-        isError={isError}
+        resultStatus={executionResult?.status}
         disabled={disabled}
-        onSelectInputTab={handleSelectInputTab}
+        onSelectTestcaseTab={handleSelectTestcaseTab}
         onSelectResultTab={handleSelectResultTab}
         onToggleOpen={handleToggleOpen}
       />
 
       {isOpen && (
-        <div className="max-h-[280px] overflow-y-auto bg-white">
+        <div className="bg-white">
           <div
-            id="panel-custom-input"
-            aria-labelledby="tab-custom-input"
-            className={activeTab === "input" ? "flex flex-col" : "hidden"}
+            id="panel-testcase"
+            aria-labelledby="tab-testcase"
+            className={activeTab === "testcase" ? "flex flex-col" : "hidden"}
           >
-            <CustomInputPanel
-              value={customInput}
-              onChange={onCustomInputChange}
+            <TestCasePanel
+              testCases={testCases}
+              selectedCaseIndex={selectedCaseIndex}
+              onSelectCase={onSelectCase}
               disabled={disabled}
             />
           </div>

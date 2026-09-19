@@ -229,7 +229,7 @@ describe("EditorPanel", () => {
 
       await user.tab();
       expect(
-        screen.getByRole("button", { name: /custom input/i })
+        screen.getByRole("button", { name: /testcase/i })
       ).toHaveFocus();
 
       await user.tab();
@@ -241,25 +241,23 @@ describe("EditorPanel", () => {
       expect(submitBtn.className).toMatch(/focus-visible:ring-2/);
     });
 
-    test("renders CustomInput and passes value and onCustomInputChange", async () => {
+    test("renders Testcase tab and passes testCases and onSelectCase", async () => {
       const user = userEvent.setup();
-      const onCustomInputChange = vi.fn();
+      const onSelectCase = vi.fn();
+      const testCases = [
+        { id: "c1", inputs: { nums: [2, 7], target: 9 }, expectedOutput: [0, 1] },
+      ];
       renderEditor({
-        customInput: "input data",
-        onCustomInputChange,
+        testCases,
+        onSelectCase,
       });
 
-      // Expand the Custom Input tab
-      const toggleBtn = screen.getByRole("button", { name: /custom input/i });
+      // Expand the Testcase tab
+      const toggleBtn = screen.getByRole("button", { name: /testcase/i });
       await user.click(toggleBtn);
 
-      const customInputArea = screen.getByRole("textbox", {
-        name: "Custom Input",
-      });
-      expect(customInputArea).toHaveValue("input data");
-
-      await user.type(customInputArea, "!");
-      expect(onCustomInputChange).toHaveBeenCalled();
+      expect(screen.getByRole("tab", { name: "Case 1" })).toBeInTheDocument();
+      expect(screen.getByText("nums =")).toBeInTheDocument();
     });
 
     test("renders language selection dropdown and invokes onLanguageChange when changed", async () => {
