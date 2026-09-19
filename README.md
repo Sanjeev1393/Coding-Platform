@@ -71,7 +71,7 @@ This does not scale. It is slow when a single evaluator reviews ten candidates. 
 
 **This platform aims to replace that manual process** by providing an interactive code editor, real-time sandboxed code execution, automated test-case evaluation, and structured assessment reporting.
 
-> **Project status:** Active development. Java code execution is working locally through **Spring Boot**, **Docker**, and **Piston**. Multi-test submission scoring, authentication, and administration features are planned next.
+> **Project status:** Active development. Dynamic question loading via REST API, automated multi-language evaluation (Java, Python, JavaScript, C++), sequential test-case progression, and hidden benchmark verification are working end-to-end through **Spring Boot**, **Docker**, and **Piston**.
 
 ---
 
@@ -79,18 +79,20 @@ This does not scale. It is slow when a single evaluator reviews ten candidates. 
 
 The current prototype allows a candidate to:
 
-- View programming questions with descriptions, sample input, and sample output
+- Fetch DSA programming questions **dynamically from the backend REST API** (`GET /api/questions`) with resilient offline caching
+- View rich problem descriptions, constraints, examples, and signature metadata
 - Navigate between multiple questions with code **retained per-question and per-language**
-- Write code in a **Monaco-based editor** (the same editor engine used by VS Code)
-- Switch between **Java, JavaScript, and Python** language templates with idiomatic starter code generated automatically from question signature metadata
-- Provide custom standard input through an expandable console panel
-- **Run Java code** through a real execution engine (Piston in Docker)
-- View standard output and wall-clock execution time
-- See structured **compilation errors, runtime errors, and timeout errors**
-- Complete an assessment with a **30-minute countdown timer** (code editing and execution lock on expiry or submission)
-- Use **keyboard shortcuts** — `Ctrl+Enter` / `Cmd+Enter` to run code, `Ctrl+Shift+Enter` / `Cmd+Shift+Enter` to submit
-
-> Java is currently the only language connected to the execution backend. JavaScript and Python templates are visible in the interface, but their execution engines are planned for Phase 4.
+- Write code in a **Monaco-based editor** (the same editor engine powering VS Code)
+- Switch between **Java, JavaScript, and Python** language templates with idiomatic starter stubs dynamically generated from function signatures
+- Provide custom standard input through a collapsible console panel
+- **Run Code** against custom input or visible sample test cases with immediate feedback
+- **Submit Solution** (`POST /api/execute/submit`) evaluated automatically by the backend judging engine against both visible examples and **hidden benchmark test cases**
+- Watch **sequential step-through test case evaluation** in real time with an optional "Skip Animation" control
+- Inspect granular test case results with **execution timing, memory metrics, and expected vs. actual diffs** (with hidden test cases safely masked)
+- Retain submission evaluation results per-question across navigation, displaying a **✓ Solved** status badge
+- Complete an assessment with a **30-minute countdown timer** (locks code editing and execution on expiry or submission)
+- Use **keyboard shortcuts** — `Ctrl+Enter` / `Cmd+Enter` to run code, `Ctrl+Shift+Enter` / `Cmd+Shift+Enter` to submit solution
+- Finalize the assessment using the global **"Finish Assessment"** action backed by a modal confirmation dialog
 
 ---
 
@@ -134,49 +136,42 @@ Scores and evaluation reports generated automatically
 
 | Feature | Detail |
 |---|---|
-| Timed assessment screen | 30-minute countdown timer; interface locks on expiry or confirmation |
-| Question display | Title, description, sample input, and sample output |
-| Question navigation | Previous and Next navigation preserving per-question code and input |
-| Per-language starter code | Auto-generated from the question's function signature metadata |
-| Code persistence | Candidate code retained in memory per-question and per-language during navigation |
-| Custom input panel | Collapsible console panel for supplying custom standard input |
-| Execution loading state | Run and submit actions disabled while execution is in flight |
-| Result display | Standard output, execution time (ms), and error diagnostics |
-| Keyboard shortcuts | `Ctrl/Cmd + Enter` to run; `Ctrl/Cmd + Shift + Enter` to submit |
-| Confirm dialog | Modal confirmation dialog before submitting the assessment |
-| Empty state handling | Fallback view rendered gracefully when no questions are available |
+| Dynamic Question Loading | Fetched via `GET /api/questions` from Spring Boot REST API with cached offline fallback |
+| Timed Assessment Screen | 30-minute countdown timer with urgency threshold (< 5 mins) and automatic assessment locking |
+| Question Display & Examples | Rich descriptions, constraints, examples decomposed into clean cards (`ExampleCard`), and signatures |
+| Question Navigation | Previous/Next navigation preserving code, custom inputs, and submission status across questions |
+| Solved Status Badges | Dynamic **✓ Solved** badge displayed on question panel and preserved upon navigation |
+| Multi-Language Starter Code | Idiomatic stubs dynamically generated from function signature metadata for Java, JavaScript, Python, and C++ |
+| Code Persistence | Candidate code retained in memory per-question and per-language during navigation |
+| Custom Input Panel | Collapsible console panel for supplying custom standard input |
+| Sequential Test-Case Stepper | Real-time step-through evaluation animation across all test cases with a "Skip Animation" option |
+| Granular Result Breakdown | Decomposed `ExecutionResultBanner` + `TestCaseAccordionItem` showing status icons, timings, memory, and expected vs actual diffs |
+| Hidden Test Case Masking | Backend keeps benchmark test case inputs and expected outputs secure; displayed as masked `Hidden Case` pills |
+| Separate Submission Flows | Individual question submissions evaluate test cases; a dedicated **Finish Assessment** button locks the test via modal confirmation |
+| Keyboard Shortcuts | `Ctrl/Cmd + Enter` to run; `Ctrl/Cmd + Shift + Enter` to submit solution |
+| Empty State Handling | Fallback view rendered gracefully when no questions are available |
 
 ### Code Editor
 
 | Feature | Detail |
 |---|---|
-| **Monaco Editor** integration | Browser-based VS Code-grade editing experience |
-| Syntax highlighting | Context-aware styling for Java, JavaScript, and Python |
-| Editor controls | Line numbers, code folding, bracket matching, and smooth scrolling |
-| Starter code generation | Dynamically derived from signature metadata rather than static templates |
-| Multi-language templates | Idiomatic stubs for Java (`class Solution`), JavaScript, and Python |
-| Language selector | Switches syntax highlighting and active code stub smoothly |
+| **Monaco Editor** Integration | Browser-based VS Code-grade editing experience |
+| Syntax Highlighting | Context-aware styling for Java, JavaScript, Python, and C++ |
+| Editor Controls | Line numbers, code folding, bracket matching, and smooth scrolling |
+| Starter Code Generation | Dynamically derived from signature metadata rather than static templates |
+| Multi-Language Templates | Idiomatic stubs for Java (`class Solution`), JavaScript, Python, and C++ |
+| Language Selector | Switches syntax highlighting and active code stub smoothly |
 
-### Java Execution
+### Automated Evaluation & Judging Engine
 
 | Feature | Detail |
 |---|---|
-| **React to Spring Boot** API | Candidate submissions dispatched via `POST /api/v1/executions` |
-| **Piston** execution engine | Sandboxed local execution running via Docker Compose |
-| **Java 15.0.2** runtime | Compiles and executes submitted Java code |
-| Test harness generation | Backend `HarnessGenerator` wraps solution methods into an executable driver with input parsing and output serialization |
-| Custom stdin support | Standard input forwarded directly to the running process |
-| Diagnostic capture | Backend captures and returns `stdout`, `stderr`, and wall-clock execution time (backend also monitors memory metrics) |
-
-### Result Validator
-
-A dedicated `resultValidator.js` utility is implemented on the frontend and covered by automated tests, supporting three validation strategies for client-side sample execution feedback:
-
-- **`exact`** — Strict primitive equality or deep JSON equivalence
-- **`unordered_array`** — Array equality ignoring element order (used for questions like Two Sum)
-- **`floating_point`** — Numeric equality within a `1e-5` tolerance margin
-
-> **Architecture Note:** While `resultValidator.js` handles visible sample/custom runs in the browser, final submission evaluation against hidden test cases will be handled exclusively on the backend (e.g. via a future `EvaluationService`/`JudgeService`). Hidden test inputs and expected outputs must never be exposed to the client.
+| **Submission Evaluation API** | Solutions evaluated via `POST /api/execute/submit` against problem test suites |
+| **`EvaluationService`** | Wraps solution code into language harnesses, executes sequentially via Piston, and fails fast on errors |
+| **`OutputComparator`** | Multi-strategy normalizer comparing outputs: exact match, whitespace trimming, floating-point epsilon (`1e-6`), and JSON/array structural equality |
+| **Hidden Benchmark Protection** | Hidden test cases are evaluated securely on the backend; inputs and expected values are never exposed to the client |
+| **Piston Sandboxing** | Multi-container isolated execution with CPU, memory, and wall-clock execution constraints |
+| **Diagnostic Capture** | Structured error mapping for `COMPILATION_ERROR`, `RUNTIME_ERROR`, `TIME_LIMIT_EXCEEDED`, and `WRONG_ANSWER` |
 
 ### Error Handling
 
@@ -184,7 +179,8 @@ The backend maps execution outcomes into platform-specific statuses:
 
 | Status | Trigger Condition |
 |---|---|
-| `SUCCESS` | Zero exit code and no runtime error signals |
+| `ACCEPTED` / `SUCCESS` | All test cases passed with expected outputs, or custom run succeeded |
+| `WRONG_ANSWER` | Code compiled and executed successfully, but returned output that differed from expected output |
 | `COMPILATION_ERROR` | Non-zero compilation exit code or compiler error diagnostics |
 | `RUNTIME_ERROR` | Non-zero runtime exit code, unhandled exceptions, or signal termination |
 | `TIME_LIMIT_EXCEEDED` | Timeout status or `SIGKILL` from the execution sandbox |
@@ -196,11 +192,13 @@ Infrastructure failures (e.g. Piston unavailable) are returned as safe applicati
 
 | Layer | Coverage |
 |---|---|
-| **Frontend components** | Vitest + React Testing Library for `QuestionPanel`, `EditorPanel`, `ExecutionResult`, `OutputPanel`, `LanguageSelector`, `CustomInputPanel`, and `ConsoleTabs` |
-| **Custom hooks** | `useAssessmentTimer` (tick accuracy, pause/expire), `useKeyboardShortcuts` (cross-platform key handling) |
-| **Utilities** | `formatTime`, `languageUtils` (type mapping, signature generation, storage keys), `resultValidator` (exact, unordered, floating point) |
-| **Backend unit tests** | JUnit 5 + Mockito for `ExecutionService` and `PistonExecutionProvider` |
-| **Piston response mapping** | `MockRestServiceServer` tests for success, compilation failure, runtime failure, timeout, and service degradation |
+| **Frontend Test Suite** | **220 automated tests across 21 test files** run via Vitest & React Testing Library |
+| **Frontend Components** | Unit & behavioral tests for `QuestionPanel`, `EditorPanel`, `ExecutionResult`, `ExecutionResultBanner`, `TestCaseAccordionItem`, `OutputPanel`, `LanguageSelector`, `CustomInputPanel`, and `ConsoleTabs` |
+| **Frontend E2E Flow** | Complete assessment flow in `App.test.jsx` (navigation, timer preservation, multi-language switching, submission, solved badges, keyboard shortcuts, and timeout locking) |
+| **Custom Hooks** | `useAssessmentTimer`, `useKeyboardShortcuts`, `useQuestionSession`, `useCodeExecution`, and `useQuestions` |
+| **Utilities & Services** | `resultValidator`, `languageUtils`, `formatExample`, `formatTime`, `formatValue`, `testRunnerService`, and `questionApi` |
+| **Backend Unit Tests** | JUnit 5 + Mockito for `EvaluationServiceTest`, `OutputComparatorTest`, `QuestionControllerTest`, `ExecutionControllerTest`, `ExecutionServiceTest`, and `PistonExecutionProviderTest` |
+| **Piston Response Mapping** | `MockRestServiceServer` tests for success, compilation failure, runtime failure, timeout, and service degradation |
 
 ---
 
@@ -248,43 +246,60 @@ Infrastructure failures (e.g. Piston unavailable) are returned as safe applicati
 ```
 React UI (Vite, Port 5173)
         |
-        | POST /api/v1/executions
-        |
-Spring Boot API (Java 21, Port 8080)
-        |
-        | POST /api/v2/execute
-        |
-Piston in Docker (Port 2000)
-        |
-Java Runtime 15.0.2
+        +-- GET  /api/questions           --> QuestionController (QuestionRepository)
+        +-- POST /api/v1/executions       --> ExecutionController (Interactive Run)
+        +-- POST /api/execute/submit      --> ExecutionController (Automated Evaluation)
+                                                  |
+                                                  v
+                                          EvaluationService
+                                                  |
+                                                  +--> OutputComparator
+                                                  +--> CodeExecutionProvider (Piston)
+                                                                |
+                                                                v
+                                                       Piston in Docker (Port 2000)
+                                                                |
+                                                      Runtimes (Java, Python, JS, C++)
 ```
 
-### Execution Flow
+### Execution & Evaluation Flows
 
-1. The candidate writes code in the **Monaco Editor**.
-2. **React** sends source code, selected language, function signature metadata, and custom input to the Spring Boot API.
-3. **`HarnessGenerator`** (Java) wraps the candidate's `Solution` class into a driver that parses input arguments and formats the returned value.
-4. The backend sends the payload to the local **Piston API**.
-5. **Piston** compiles and executes the code within an isolated container sandbox.
-6. Piston returns stdout, stderr, exit codes, and execution metrics.
-7. **`PistonExecutionProvider`** maps the Piston response into a structured `ExecutionResponse`.
-8. **React** displays the result — output, diagnostics, and execution time — to the candidate.
+#### 1. Question Discovery Flow
+- On load, React invokes `useQuestions()`, which fetches problem definitions via `GET /api/questions`.
+- The backend's `QuestionRepository` strips hidden benchmark test case expected values, providing clean descriptions, constraints, examples, and function signatures.
+- React caches questions in state and gracefully falls back to mock fixtures if the backend is temporarily unreachable.
+
+#### 2. Interactive Run Flow (Custom Input & Sample Tests)
+1. Candidate writes code in the **Monaco Editor** and clicks **Run Code** (or presses `Ctrl+Enter`).
+2. Frontend dispatches code, selected language, and standard input to `POST /api/v1/executions`.
+3. Backend wraps code with `HarnessGenerator` and executes via Piston sandbox.
+4. Output, execution time, and stdout/stderr are returned to the client console.
+
+#### 3. Automated Judging Flow (Submit Solution)
+1. Candidate clicks **Submit Solution** (or presses `Ctrl+Shift+Enter`).
+2. Frontend dispatches `POST /api/execute/submit` containing `questionId`, `language`, and `sourceCode`.
+3. **`EvaluationService`** iterates through all visible and hidden test cases:
+   - Wraps source code in a language-specific driver.
+   - Executes each case sequentially via Piston, monitoring execution time and memory.
+   - Compares actual vs expected output using **`OutputComparator`** (exact, trimmed whitespace, float epsilon `1e-6`, and array structural equivalence).
+   - Fails fast on the first failing test case or compilation/runtime error.
+4. Returns an **`EvaluationResult`** with granular test case results. Benchmark test cases have their inputs and expected values masked (`isHidden: true`) to maintain integrity.
+5. The UI displays the verdict in **`ExecutionResultBanner`**, steps through sequential evaluation animations, and expands diffs in **`TestCaseAccordionItem`**.
+6. The question is marked with a **✓ Solved** badge, retained across question navigation.
 
 ### Backend Layer Design
 
 ```
-ExecutionController
-        |
-ExecutionService
-        |
-CodeExecutionProvider   <-- interface abstraction
-        |
-PistonExecutionProvider <-- current implementation
-        |
-Piston API (Docker)
+QuestionController                 ExecutionController
+        |                                  |
+QuestionRepository                  EvaluationService / ExecutionService
+        |                                  |
+InMemoryQuestionRepository          OutputComparator / CodeExecutionProvider
+                                           |
+                                    PistonExecutionProvider
+                                           |
+                                    Piston API (Docker)
 ```
-
-The `CodeExecutionProvider` interface decouples the execution engine from core business logic. Alternative engines (e.g. Judge0 or cloud sandboxes) can be integrated by implementing this interface without altering controllers or services.
 
 ---
 
@@ -292,64 +307,87 @@ The `CodeExecutionProvider` interface decouples the execution engine from core b
 
 ```
 Coding-Platform/
-├── frontend/                           # React application
+├── frontend/                               # React application
 │   ├── src/
-│   │   ├── components/                 # UI components with co-located tests
-│   │   │   ├── AssessmentHeader.jsx
-│   │   │   ├── CodeEditor.jsx
-│   │   │   ├── ConfirmDialog.jsx
-│   │   │   ├── ConsoleTabBar.jsx
-│   │   │   ├── ConsoleTabs.jsx
-│   │   │   ├── CustomInputPanel.jsx
-│   │   │   ├── EditorPanel.jsx
-│   │   │   ├── EmptyAssessment.jsx
-│   │   │   ├── ExecutionResult.jsx
-│   │   │   ├── LanguageSelector.jsx
-│   │   │   ├── OutputPanel.jsx
-│   │   │   ├── QuestionPanel.jsx
-│   │   │   ├── StatusBanner.jsx
-│   │   │   └── TestCasePanel.jsx
+│   │   ├── components/                     # UI components with co-located tests
+│   │   │   ├── AssessmentHeader.jsx        # Countdown timer & Finish Assessment trigger
+│   │   │   ├── CodeEditor.jsx              # Monaco Editor integration
+│   │   │   ├── ConfirmDialog.jsx           # Modal confirmation dialog for assessment submission
+│   │   │   ├── ConsoleTabBar.jsx           # Tab selector (Testcase vs Test Result)
+│   │   │   ├── ConsoleTabs.jsx             # Collapsible bottom console container
+│   │   │   ├── CustomInputPanel.jsx        # Stdin console textarea
+│   │   │   ├── EditorPanel.jsx             # Language selector, editor, run/submit action bar
+│   │   │   ├── EmptyAssessment.jsx         # Graceful empty state fallback
+│   │   │   ├── ExecutionResult.jsx         # High-level evaluation coordinator
+│   │   │   ├── ExecutionResultBanner.jsx   # Decomposed verdict banner, metrics & skip animation
+│   │   │   ├── LanguageSelector.jsx        # Multi-language selector dropdown
+│   │   │   ├── OutputPanel.jsx             # Raw execution output panel
+│   │   │   ├── QuestionPanel.jsx           # Problem description & decomposed ExampleCards
+│   │   │   ├── StatusBanner.jsx            # Submission confirmation notification
+│   │   │   ├── TestCaseAccordionItem.jsx   # Decomposed test-case row, status icon & diff block
+│   │   │   └── TestCasePanel.jsx           # Sample test case selector and input viewer
 │   │   ├── hooks/
-│   │   │   ├── useAssessmentTimer.js   # Countdown timer hook
-│   │   │   └── useKeyboardShortcuts.js # Cross-platform keyboard shortcuts hook
+│   │   │   ├── useAssessmentTimer.js       # Countdown timer & urgency hook
+│   │   │   ├── useCodeExecution.js         # Code execution & submission orchestration hook
+│   │   │   ├── useKeyboardShortcuts.js     # Cross-platform keyboard shortcuts hook
+│   │   │   ├── useQuestions.js             # Dynamic question fetching & caching hook
+│   │   │   └── useQuestionSession.js       # Per-question code & navigation state hook
 │   │   ├── services/
-│   │   │   └── executionApi.js         # Backend REST API client
+│   │   │   ├── executionApi.js             # REST client for runs and submissions
+│   │   │   ├── questionApi.js              # REST client for question fetching
+│   │   │   └── testRunnerService.js        # Execution orchestration and adapter service
 │   │   ├── utils/
-│   │   │   ├── formatTime.js           # Time formatting utility
-│   │   │   ├── formatValue.js          # Value formatting utility
-│   │   │   ├── languageUtils.js        # Type mapping and signature generator
-│   │   │   └── resultValidator.js      # Output validation strategies
-│   │   ├── constants.js                # Questions, test cases, language configs
-│   │   └── App.jsx                     # Root assessment orchestration component
-│   ├── nginx.conf                      # Nginx reverse proxy & SPA fallback configuration
-│   ├── Dockerfile                      # Multi-stage build (Node 22 -> Nginx Alpine)
-│   ├── .dockerignore                   # Frontend build exclusions
+│   │   │   ├── formatExample.js            # Example formatting and normalization utility
+│   │   │   ├── formatTime.js               # mm:ss time formatting utility
+│   │   │   ├── formatValue.js              # Output formatting utility
+│   │   │   ├── languageUtils.js            # Multi-language type mappings & signatures
+│   │   │   └── resultValidator.js          # Output validation strategies
+│   │   ├── __tests__/
+│   │   │   └── mockQuestions.js            # Test fixtures for questions and test cases
+│   │   ├── constants.js                    # Assessment durations, language configs
+│   │   └── App.jsx                         # Root assessment orchestration component
+│   ├── nginx.conf                          # Nginx reverse proxy & SPA fallback configuration
+│   ├── Dockerfile                          # Multi-stage build (Node 22 -> Nginx Alpine)
+│   ├── .dockerignore                       # Frontend build exclusions
 │   └── package.json
 │
-├── backend/                            # Spring Boot application
+├── backend/                                # Spring Boot application
 │   ├── src/main/java/com/codingplatform/backend/
 │   │   ├── controller/
-│   │   │   ├── ExecutionController.java
-│   │   │   └── HealthController.java
+│   │   │   ├── ExecutionController.java    # Interactive run and submission endpoints
+│   │   │   ├── HealthController.java       # Healthcheck endpoint
+│   │   │   └── QuestionController.java     # Dynamic question discovery endpoints
 │   │   ├── dto/
-│   │   │   ├── ExecutionRequest.java
-│   │   │   ├── ExecutionResponse.java
-│   │   │   ├── ExecutionStatus.java
-│   │   │   ├── FunctionParam.java
-│   │   │   └── FunctionSignature.java
+│   │   │   ├── EvaluationResult.java       # Automated evaluation verdict and case details
+│   │   │   ├── ExecutionRequest.java       # Interactive run request DTO
+│   │   │   ├── ExecutionResponse.java      # Interactive run response DTO
+│   │   │   ├── ExecutionStatus.java        # Platform status enum (ACCEPTED, WRONG_ANSWER, etc.)
+│   │   │   ├── FunctionParam.java          # Parameter metadata
+│   │   │   ├── FunctionSignature.java      # Function signature metadata
+│   │   │   ├── QuestionResponse.java       # Safe question DTO (hidden cases masked)
+│   │   │   ├── SubmissionRequest.java      # Solution submission DTO
+│   │   │   └── TestCaseResult.java         # Single test case evaluation result DTO
+│   │   ├── model/
+│   │   │   ├── QuestionDefinition.java     # Core question domain model
+│   │   │   └── TestCase.java               # Test case domain model (with isHidden flag)
+│   │   ├── repository/
+│   │   │   ├── InMemoryQuestionRepository.java # In-memory curated question store
+│   │   │   └── QuestionRepository.java     # Repository interface abstraction
 │   │   ├── service/
-│   │   │   └── ExecutionService.java
+│   │   │   ├── EvaluationService.java      # Judging engine evaluating test case suites
+│   │   │   ├── ExecutionService.java       # Single execution service
+│   │   │   └── OutputComparator.java       # Multi-tiered output comparison engine
 │   │   └── provider/
-│   │       ├── CodeExecutionProvider.java       # Provider interface
+│   │       ├── CodeExecutionProvider.java  # Execution provider interface
 │   │       └── piston/
-│   │           ├── PistonExecutionProvider.java # Piston provider implementation
-│   │           ├── PistonProperties.java
-│   │           ├── dto/                         # Piston API DTOs
+│   │           ├── PistonExecutionProvider.java # Piston integration provider
+│   │           ├── PistonProperties.java   # Configurable timeouts and endpoints
+│   │           ├── dto/                    # Piston REST API DTOs
 │   │           └── harness/
-│   │               └── HarnessGenerator.java    # Dynamic test driver generator
-│   ├── src/test/
-│   ├── Dockerfile                      # Multi-stage build (Temurin JDK 21 -> JRE 21)
-│   ├── .dockerignore                   # Backend build exclusions
+│   │               └── HarnessGenerator.java   # Dynamic test driver generator
+│   ├── src/test/                               # JUnit 5, Mockito & MockMvc tests
+│   ├── Dockerfile                              # Multi-stage build (Temurin JDK 21 -> JRE 21)
+│   ├── .dockerignore                           # Backend build exclusions
 │   ├── pom.xml
 │   └── mvnw.cmd
 │
@@ -649,12 +687,10 @@ cd backend
 
 ## Current Limitations
 
-- Only **Java** execution is currently wired end-to-end; JavaScript and Python stubs are present in the UI but backend execution engines are not yet enabled.
 - **Piston and Docker** must be running locally before starting the backend service.
-- Full **hidden-test submission evaluation** is in development — running code currently executes user input or sample input rather than automatically grading against complete test suites.
-- Questions, sample data, and candidate submissions are currently held **in memory** and are not persisted to a database.
-- **User authentication and role-based access control** are not yet implemented.
-- The prototype is configured for local assessment demonstrations and requires container hardening before public multi-tenant deployment.
+- Questions, sample data, and candidate submissions are currently held **in memory** (`InMemoryQuestionRepository`, client state) and are not persisted to a relational database.
+- **User authentication and role-based access control** (recruiter vs candidate) are not yet implemented.
+- The prototype is configured for local assessment demonstrations and requires container hardening, rate limiting, and network isolation before public multi-tenant deployment.
 
 ---
 
@@ -680,18 +716,25 @@ cd backend
 
 ---
 
-### Phase 2 — Automatic Evaluation _(next)_
+### Phase 2 — Automatic Evaluation & Dynamic Question Bank _(complete)_
 
-- [ ] Use the frontend validator for visible Run Code feedback
-- [ ] Implement backend-side test-case evaluation for submissions
-- [ ] Keep hidden inputs and expected outputs exclusively on the server
-- [ ] Differentiate `WRONG_ANSWER` from execution runtime errors
-- [ ] Display granular submission summaries (e.g. 8 / 10 test cases passed)
-- [ ] Persist candidate submission attempts and execution history
+- [x] Dynamic question discovery via backend REST API (`GET /api/questions`)
+- [x] Question repository abstraction with `InMemoryQuestionRepository`
+- [x] Automatic judging engine on backend (`POST /api/execute/submit` via `EvaluationService`)
+- [x] Multi-language submission evaluation support (Java, Python, JavaScript, C++)
+- [x] Server-side protection for hidden benchmark test cases (inputs and expected values masked)
+- [x] Accurate differentiation between `WRONG_ANSWER`, `COMPILATION_ERROR`, and `RUNTIME_ERROR`
+- [x] Multi-strategy output comparator (`OutputComparator`: exact, whitespace, float epsilon, JSON/array)
+- [x] Sequential test-case stepper animation with "Skip Animation" option
+- [x] Granular execution breakdown with execution time, memory usage, and expected vs actual diffs
+- [x] Component decomposition (`ExecutionResultBanner`, `TestCaseAccordionItem`, `ExampleCard`)
+- [x] Submissions persisted per-question with **✓ Solved** badge across question navigation
+- [x] Dedicated "Finish Assessment" confirmation modal workflow
+- [x] Comprehensive end-to-end tests (220 frontend tests, JUnit evaluation suites)
 
 ---
 
-### Phase 3 — Assessment Management
+### Phase 3 — Assessment Management _(next)_
 
 - [ ] Candidate authentication and test session management
 - [ ] Recruiter and evaluator administration roles
@@ -702,12 +745,12 @@ cd backend
 
 ---
 
-### Phase 4 — Extended Language Support
+### Phase 4 — Extended Language Optimization & Performance
 
-- [ ] JavaScript execution support via Piston
-- [ ] Python execution support via Piston
-- [ ] Language-specific harness drivers for function-style solutions
-- [ ] Per-language memory and time limit configurations
+- [ ] Language-specific memory and time limit fine-tuning
+- [ ] Additional algorithmic data structures in test harnesses (trees, linked lists, graphs)
+- [ ] Asynchronous worker queue for concurrent submissions under high candidate load
+- [ ] Advanced candidate performance telemetry (memory profiles, microbenchmark benchmarks)
 
 ---
 
