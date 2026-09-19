@@ -1,65 +1,64 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import ConsoleTabs from "./ConsoleTabs";
 
 describe("ConsoleTabs", () => {
+  const mockTestCases = [
+    {
+      id: "c1",
+      inputs: { nums: [2, 7, 11, 15], target: 9 },
+      expectedOutput: [0, 1],
+    },
+    {
+      id: "c2",
+      inputs: { nums: [3, 2, 4], target: 6 },
+      expectedOutput: [1, 2],
+    },
+  ];
+
   describe("default and collapsed states", () => {
-    test("is collapsed by default and renders only Custom Input tab when idle", () => {
+    test("is collapsed by default and renders only Testcase tab when idle", () => {
       render(
         <ConsoleTabs
-          customInput=""
-          onCustomInputChange={vi.fn()}
+          testCases={mockTestCases}
+          selectedCaseIndex={0}
+          onSelectCase={vi.fn()}
           executionResult={{ status: "idle" }}
         />
       );
 
-      const inputTab = screen.getByRole("button", { name: /custom input/i });
-      expect(inputTab).toBeInTheDocument();
-      expect(inputTab).toHaveAttribute("aria-expanded", "false");
-      expect(
-        screen.queryByRole("textbox", { name: "Custom Input" })
-      ).not.toBeInTheDocument();
+      const testcaseTab = screen.getByRole("button", { name: /testcase/i });
+      expect(testcaseTab).toBeInTheDocument();
+      expect(testcaseTab).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByRole("tab", { name: "Case 1" })).not.toBeInTheDocument();
       expect(
         screen.queryByRole("button", { name: /test result/i })
       ).not.toBeInTheDocument();
     });
 
-    test("clicking Custom Input tab expands and reveals textarea", async () => {
+    test("clicking Testcase tab expands and reveals test cases", async () => {
       const user = userEvent.setup();
       render(
         <ConsoleTabs
-          customInput=""
-          onCustomInputChange={vi.fn()}
+          testCases={mockTestCases}
+          selectedCaseIndex={0}
+          onSelectCase={vi.fn()}
           executionResult={{ status: "idle" }}
         />
       );
 
-      const inputTab = screen.getByRole("button", { name: /custom input/i });
-      await user.click(inputTab);
+      const testcaseTab = screen.getByRole("button", { name: /testcase/i });
+      await user.click(testcaseTab);
 
-      expect(inputTab).toHaveAttribute("aria-expanded", "true");
-      expect(
-        screen.getByRole("textbox", { name: "Custom Input" })
-      ).toBeInTheDocument();
+      expect(testcaseTab).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByRole("tab", { name: "Case 1" })).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "Case 2" })).toBeInTheDocument();
+      expect(screen.getByText("nums =")).toBeInTheDocument();
 
       // Clicking again collapses it
-      await user.click(inputTab);
-      expect(inputTab).toHaveAttribute("aria-expanded", "false");
-      expect(
-        screen.queryByRole("textbox", { name: "Custom Input" })
-      ).not.toBeInTheDocument();
-    });
-
-    test("displays Active badge when custom input is non-empty", () => {
-      render(
-        <ConsoleTabs
-          customInput="test data"
-          onCustomInputChange={vi.fn()}
-          executionResult={{ status: "idle" }}
-        />
-      );
-
-      expect(screen.getByText("Active")).toBeInTheDocument();
+      await user.click(testcaseTab);
+      expect(testcaseTab).toHaveAttribute("aria-expanded", "false");
+      expect(screen.queryByRole("tab", { name: "Case 1" })).not.toBeInTheDocument();
     });
   });
 
@@ -67,8 +66,9 @@ describe("ConsoleTabs", () => {
     test("auto-opens and activates Test Result tab when isRunning is true", () => {
       render(
         <ConsoleTabs
-          customInput=""
-          onCustomInputChange={vi.fn()}
+          testCases={mockTestCases}
+          selectedCaseIndex={0}
+          onSelectCase={vi.fn()}
           isRunning={true}
           executionResult={{ status: "idle" }}
           languageName="Java"
@@ -87,16 +87,17 @@ describe("ConsoleTabs", () => {
 
     test("auto-opens and shows success output when execution result arrives", () => {
       const successResult = {
-        status: "success",
+        status: "accepted",
         language: "Java",
-        output: "Test passed!",
-        executionTime: "12ms",
+        output: "[0, 1]",
+        executionTime: "12 ms",
       };
 
       render(
         <ConsoleTabs
-          customInput=""
-          onCustomInputChange={vi.fn()}
+          testCases={mockTestCases}
+          selectedCaseIndex={0}
+          onSelectCase={vi.fn()}
           isRunning={false}
           executionResult={successResult}
           languageName="Java"
@@ -106,24 +107,28 @@ describe("ConsoleTabs", () => {
 
       const resultTab = screen.getByRole("button", { name: /test result/i });
       expect(resultTab).toBeInTheDocument();
+      const resultRegion = screen.getByRole("region", {
+        name: "Execution result",
+      });
       expect(resultTab).toHaveAttribute("aria-selected", "true");
-      expect(screen.getByText("✓ Success")).toBeInTheDocument();
-      expect(screen.getByText("Test passed!")).toBeInTheDocument();
+      expect(screen.getByText("✓ Accepted")).toBeInTheDocument();
+      expect(within(resultRegion).getByText("[0, 1]")).toBeInTheDocument();
     });
 
-    test("allows candidate to switch between Custom Input and Test Result tabs seamlessly", async () => {
+    test("allows candidate to switch between Testcase and Test Result tabs seamlessly", async () => {
       const user = userEvent.setup();
       const successResult = {
-        status: "success",
+        status: "accepted",
         language: "Python",
         output: "Result output",
-        executionTime: "8ms",
+        executionTime: "8 ms",
       };
 
       render(
         <ConsoleTabs
-          customInput="candidate input"
-          onCustomInputChange={vi.fn()}
+          testCases={mockTestCases}
+          selectedCaseIndex={0}
+          onSelectCase={vi.fn()}
           isRunning={false}
           executionResult={successResult}
           languageName="Python"
@@ -134,13 +139,12 @@ describe("ConsoleTabs", () => {
       // Initially active on Test Result
       expect(screen.getByText("Result output")).toBeInTheDocument();
 
-      // Click Custom Input tab: switches to input view
-      const inputTab = screen.getByRole("button", { name: /custom input/i });
-      await user.click(inputTab);
+      // Click Testcase tab: switches to testcase view
+      const testcaseTab = screen.getByRole("button", { name: /testcase/i });
+      await user.click(testcaseTab);
 
-      const textarea = screen.getByRole("textbox", { name: "Custom Input" });
-      expect(textarea).toBeInTheDocument();
-      expect(textarea).toHaveValue("candidate input");
+      expect(screen.getByRole("tab", { name: "Case 1" })).toBeInTheDocument();
+      expect(screen.getByText("nums =")).toBeInTheDocument();
 
       // Click Test Result tab: switches back to result view
       const resultTab = screen.getByRole("button", { name: /test result/i });
@@ -150,59 +154,41 @@ describe("ConsoleTabs", () => {
     });
   });
 
-  describe("input interactions and controls", () => {
-    test("typing in the textarea triggers onCustomInputChange", async () => {
+  describe("case tab interactions and controls", () => {
+    test("clicking case tab calls onSelectCase with index", async () => {
       const user = userEvent.setup();
-      const onCustomInputChange = vi.fn();
+      const onSelectCase = vi.fn();
 
       render(
         <ConsoleTabs
-          customInput=""
-          onCustomInputChange={onCustomInputChange}
+          testCases={mockTestCases}
+          selectedCaseIndex={0}
+          onSelectCase={onSelectCase}
           defaultOpen={true}
         />
       );
 
-      const textarea = screen.getByRole("textbox", { name: "Custom Input" });
-      await user.type(textarea, "abc");
+      const case2Tab = screen.getByRole("tab", { name: "Case 2" });
+      await user.click(case2Tab);
 
-      expect(onCustomInputChange).toHaveBeenCalledTimes(3);
+      expect(onSelectCase).toHaveBeenCalledWith(1);
     });
 
-    test("clicking Clear button resets custom input", async () => {
-      const user = userEvent.setup();
-      const onCustomInputChange = vi.fn();
-
+    test("all tab buttons are disabled when disabled prop is true", () => {
       render(
         <ConsoleTabs
-          customInput="sample input"
-          onCustomInputChange={onCustomInputChange}
-          defaultOpen={true}
-        />
-      );
-
-      const clearBtn = screen.getByRole("button", { name: "Clear" });
-      await user.click(clearBtn);
-
-      expect(onCustomInputChange).toHaveBeenCalledWith({
-        target: { value: "" },
-      });
-    });
-
-    test("all tab buttons and textarea are disabled when disabled prop is true", () => {
-      render(
-        <ConsoleTabs
-          customInput="sample input"
-          onCustomInputChange={vi.fn()}
+          testCases={mockTestCases}
+          selectedCaseIndex={0}
+          onSelectCase={vi.fn()}
           disabled={true}
           defaultOpen={true}
         />
       );
 
       expect(
-        screen.getByRole("button", { name: /custom input/i })
+        screen.getByRole("button", { name: /testcase/i })
       ).toBeDisabled();
-      expect(screen.getByRole("textbox", { name: "Custom Input" })).toBeDisabled();
+      expect(screen.getByRole("tab", { name: "Case 1" })).toBeDisabled();
     });
   });
 });

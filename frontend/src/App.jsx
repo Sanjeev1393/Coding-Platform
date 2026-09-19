@@ -1,16 +1,9 @@
 import { useState } from "react";
-import {
-  ASSESSMENT_DURATION_SECONDS,
-  SUPPORTED_LANGUAGES,
-  questions,
-} from "./constants";
-import {
-  getStarterCode,
-  buildQuestionLanguageKey,
-} from "./utils/languageUtils";
+import { ASSESSMENT_DURATION_SECONDS, questions } from "./constants";
 import { useAssessmentTimer } from "./hooks/useAssessmentTimer";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
-import { executeCode } from "./services/executionApi";
+import { useQuestionSession } from "./hooks/useQuestionSession";
+import { useCodeExecution } from "./hooks/useCodeExecution";
 import AssessmentHeader from "./components/AssessmentHeader";
 import QuestionPanel from "./components/QuestionPanel";
 import EditorPanel from "./components/EditorPanel";
@@ -18,22 +11,34 @@ import ConfirmDialog from "./components/ConfirmDialog";
 import StatusBanner from "./components/StatusBanner";
 import EmptyAssessment from "./components/EmptyAssessment";
 
-const INITIAL_EXECUTION_RESULT = {
-  status: "idle",
-  output: "",
-  error: "",
-  executionTime: null,
-};
-
 function App() {
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [selectedLanguage, setSelectedLanguage] = useState("java");
-  const [solutionsByKey, setSolutionsByKey] = useState({});
-  const [customInputsByQuestion, setCustomInputsByQuestion] = useState({});
-  const [isRunning, setIsRunning] = useState(false);
-  const [executionResult, setExecutionResult] = useState(
-    INITIAL_EXECUTION_RESULT
-  );
+  const {
+    currentQuestionIndex,
+    currentQuestion,
+    selectedLanguage,
+    activeLanguageName,
+    currentCode,
+    currentCustomInput,
+    selectedCaseIndex,
+    isFirstQuestion,
+    isLastQuestion,
+    hasQuestions,
+    goToPreviousQuestion,
+    goToNextQuestion,
+    changeLanguage,
+    updateCode,
+    updateCustomInput,
+    selectCase,
+  } = useQuestionSession(questions);
+
+  const {
+    isRunning,
+    executionResult,
+    runSolution,
+    clearExecutionResult,
+    setExecutionResult,
+  } = useCodeExecution();
+
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -42,131 +47,51 @@ function App() {
     ASSESSMENT_DURATION_SECONDS
   );
 
-
   // Derived state
   const isLocked = isSubmitted || isRunning || isTimeUp;
-  const hasQuestions = questions.length > 0;
-  const currentQuestion = questions[currentQuestionIndex] ?? null;
-  const isFirstQuestion = currentQuestionIndex === 0;
-  const isLastQuestion = currentQuestionIndex === questions.length - 1;
-
-  const currentKey = currentQuestion
-    ? buildQuestionLanguageKey(currentQuestion.id, selectedLanguage)
-    : "";
-  const currentCode = currentQuestion
-    ? (solutionsByKey[currentKey] ??
-      getStarterCode(currentQuestion, selectedLanguage))
-    : "";
-  const currentCustomInput = currentQuestion
-    ? (customInputsByQuestion[currentQuestion.id] ?? "")
-    : "";
-
-  const activeLanguageConfig = SUPPORTED_LANGUAGES.find(
-    (lang) => lang.id === selectedLanguage
-  );
-  const activeLanguageName = activeLanguageConfig?.name || selectedLanguage;
-
-  const clearExecutionResult = () => {
-    setExecutionResult(INITIAL_EXECUTION_RESULT);
-  };
 
   const handlePreviousQuestion = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex((prev) => prev - 1);
+    if (goToPreviousQuestion()) {
       clearExecutionResult();
     }
   };
 
   const handleNextQuestion = () => {
-    if (currentQuestionIndex < questions.length - 1) {
-      setCurrentQuestionIndex((prev) => prev + 1);
+    if (goToNextQuestion()) {
       clearExecutionResult();
     }
   };
 
   const handleLanguageChange = (newLanguage) => {
     if (isLocked) return;
-    setSelectedLanguage(newLanguage);
+    changeLanguage(newLanguage);
     clearExecutionResult();
   };
 
   const handleCodeChange = (newCode) => {
-    if (isLocked || !currentQuestion) return;
-
-    setSolutionsByKey((prev) => ({
-      ...prev,
-      [buildQuestionLanguageKey(currentQuestion.id, selectedLanguage)]: newCode,
-    }));
+    if (isLocked) return;
+    updateCode(newCode);
   };
 
   const handleCustomInputChange = (eventOrValue) => {
-    if (isLocked || !currentQuestion) return;
-    const nextVal =
-      typeof eventOrValue === "string"
-        ? eventOrValue
-        : eventOrValue?.target?.value ?? "";
-    setCustomInputsByQuestion((prev) => ({
-      ...prev,
-      [currentQuestion.id]: nextVal,
-    }));
+    if (isLocked) return;
+    updateCustomInput(eventOrValue);
+  };
+
+  const handleSelectCase = (index) => {
+    if (isLocked) return;
+    selectCase(index);
   };
 
   const handleRunCode = async () => {
-    if (isLocked || isRunning) {
-      return;
-    }
-
-    if (currentCode.trim() === "") {
-      setExecutionResult({
-        status: "error",
-        error: "Editor is empty. Please write your solution before running.",
-        output: "",
-        executionTime: null,
-      });
-      return;
-    }
-
-    setIsRunning(true);
-    setExecutionResult(null);
-
-    try {
-      const result = await executeCode({
-        language: selectedLanguage,
-        sourceCode: currentCode,
-        stdin: currentCustomInput,
-        signature: currentQuestion?.signature,
-        sampleInput: currentQuestion?.sampleInput,
-      });
-
-      const errorType = result.compilationOutput
-        ? "compilation"
-        : result.stderr
-          ? "runtime"
-          : "error";
-
-      setExecutionResult({
-        status: result.status === "SUCCESS" ? "success" : "error",
-        errorType,
-        output: result.stdout,
-        error: result.compilationOutput || result.stderr,
-        executionTime: result.executionTimeMs,
-        memoryKb: result.memoryKb,
-        language: activeLanguageName || selectedLanguage,
-        input: currentCustomInput,
-        isMock: false,
-      });
-    } catch (error) {
-      setExecutionResult({
-        status: "error",
-        output: "",
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unable to connect to the execution service",
-      });
-    } finally {
-      setIsRunning(false);
-    }
+    await runSolution({
+      question: currentQuestion,
+      language: selectedLanguage,
+      sourceCode: currentCode,
+      customInput: currentCustomInput,
+      activeLanguageName,
+      isLocked,
+    });
   };
 
   const handleSubmitClick = () => {
@@ -243,6 +168,9 @@ function App() {
             isLocked={isLocked}
             customInput={currentCustomInput}
             onCustomInputChange={handleCustomInputChange}
+            testCases={currentQuestion?.testCases?.visible || []}
+            selectedCaseIndex={selectedCaseIndex}
+            onSelectCase={handleSelectCase}
             executionResult={executionResult}
             activeLanguageName={activeLanguageName}
             currentQuestionIndex={currentQuestionIndex}

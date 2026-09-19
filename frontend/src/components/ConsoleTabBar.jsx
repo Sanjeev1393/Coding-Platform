@@ -1,71 +1,62 @@
-import { SquareTerminal, Loader2, ChevronDown } from "lucide-react";
+import { FlaskConical, Loader2, ChevronDown } from "lucide-react";
 
 /**
- * ConsoleTabBar renders the interactive tab bar for Custom Input, Test Result,
+ * ConsoleTabBar renders the interactive tab bar for Testcase, Test Result,
  * and the expand/collapse auxiliary toggle.
  *
  * @param {Object} props
  * @param {boolean} props.isOpen - Whether console panel is expanded.
- * @param {string} props.activeTab - Currently active tab ('input' | 'result').
- * @param {boolean} props.hasInput - Whether custom input contains text.
+ * @param {string} props.activeTab - Currently active tab ('testcase' | 'result').
  * @param {boolean} props.hasResult - Whether an execution result is present.
  * @param {boolean} props.isRunning - Whether code is actively executing.
- * @param {boolean} props.isSuccess - Whether execution succeeded.
- * @param {boolean} props.isError - Whether execution failed with error.
+ * @param {string|null} props.resultStatus - Status of result ('accepted' | 'wrong_answer' | 'error' | 'success').
  * @param {boolean} props.disabled - Whether tabs are disabled (e.g. locked).
- * @param {Function} props.onSelectInputTab - Callback when Custom Input tab is clicked.
+ * @param {Function} props.onSelectTestcaseTab - Callback when Testcase tab is clicked.
  * @param {Function} props.onSelectResultTab - Callback when Test Result tab is clicked.
  * @param {Function} props.onToggleOpen - Callback to toggle open/collapse.
  */
 function ConsoleTabBar({
   isOpen,
   activeTab,
-  hasInput,
   hasResult,
   isRunning,
-  isSuccess,
-  isError,
+  resultStatus,
   disabled,
-  onSelectInputTab,
+  onSelectTestcaseTab,
   onSelectResultTab,
   onToggleOpen,
 }) {
+  const isAccepted = resultStatus === "accepted" || resultStatus === "success";
+  const isWrongAnswer = resultStatus === "wrong_answer";
+  const isError = resultStatus === "error";
+
   return (
     <div className="flex items-center justify-between border-b border-slate-200/90 bg-slate-50/80 px-2.5 py-1.5">
       <div aria-label="Console tabs" className="flex items-center gap-1.5">
-        {/* Custom Input Tab */}
+        {/* Testcase Tab */}
         <button
           type="button"
-          id="tab-custom-input"
-          aria-selected={isOpen && activeTab === "input"}
-          aria-expanded={isOpen && activeTab === "input"}
-          aria-controls="panel-custom-input"
-          onClick={onSelectInputTab}
+          id="tab-testcase"
+          aria-selected={isOpen && activeTab === "testcase"}
+          aria-expanded={isOpen && activeTab === "testcase"}
+          aria-controls="panel-testcase"
+          onClick={onSelectTestcaseTab}
           disabled={disabled}
           className={`group inline-flex cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 disabled:cursor-not-allowed disabled:opacity-50 ${
-            isOpen && activeTab === "input"
+            isOpen && activeTab === "testcase"
               ? "bg-white text-blue-700 shadow-xs ring-1 ring-slate-200/80"
               : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-800"
           }`}
         >
-          {/* Terminal / Stdin Icon */}
-          <SquareTerminal
+          <FlaskConical
             className={`h-3.5 w-3.5 transition-colors ${
-              isOpen && activeTab === "input"
+              isOpen && activeTab === "testcase"
                 ? "text-blue-600"
                 : "text-slate-400 group-hover:text-slate-600"
             }`}
             aria-hidden="true"
           />
-
-          <span>Custom Input</span>
-
-          {hasInput && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 border border-emerald-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              Active
-            </span>
-          )}
+          <span>Testcase</span>
         </button>
 
         {/* Test Result Tab (Enabled/Visible during execution or when a result exists) */}
@@ -89,17 +80,24 @@ function ConsoleTabBar({
                 className="h-3.5 w-3.5 animate-spin text-blue-600"
                 aria-hidden="true"
               />
+            ) : isAccepted ? (
+              <span className="text-xs font-bold text-emerald-600">✓</span>
+            ) : isWrongAnswer ? (
+              <span className="text-xs font-bold text-red-600">✗</span>
             ) : isError ? (
               <span className="text-xs font-bold text-red-600">✗</span>
-            ) : (
-              <span className="text-xs font-bold text-emerald-600">✓</span>
-            )}
+            ) : null}
 
             <span>Test Result</span>
 
-            {isSuccess && (
+            {isAccepted && (
               <span className="rounded-full bg-emerald-50 px-1.5 py-0.2 text-[10px] font-medium text-emerald-700 border border-emerald-200">
-                Passed
+                Accepted
+              </span>
+            )}
+            {isWrongAnswer && (
+              <span className="rounded-full bg-red-50 px-1.5 py-0.2 text-[10px] font-medium text-red-700 border border-red-200">
+                Wrong Answer
               </span>
             )}
             {isError && (
