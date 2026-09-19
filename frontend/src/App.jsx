@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ASSESSMENT_DURATION_SECONDS, questions } from "./constants";
+import { ASSESSMENT_DURATION_SECONDS } from "./constants";
+import { useQuestions } from "./hooks/useQuestions";
 import { useAssessmentTimer } from "./hooks/useAssessmentTimer";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
 import { useQuestionSession } from "./hooks/useQuestionSession";
@@ -11,7 +12,15 @@ import ConfirmDialog from "./components/ConfirmDialog";
 import StatusBanner from "./components/StatusBanner";
 import EmptyAssessment from "./components/EmptyAssessment";
 
+/**
+ * Root Application component coordinating assessment state, navigation across questions,
+ * countdown timer, code execution, submission verification, and layout orchestration.
+ *
+ * @returns {JSX.Element} The rendered assessment application
+ */
 function App() {
+  const { questions } = useQuestions();
+
   const {
     currentQuestionIndex,
     currentQuestion,
@@ -33,8 +42,12 @@ function App() {
 
   const {
     isRunning,
+    isRunningCode,
+    isSubmitting,
     executionResult,
+    submissionsByQuestion,
     runSolution,
+    submitSolution,
     clearExecutionResult,
     setExecutionResult,
   } = useCodeExecution();
@@ -52,13 +65,25 @@ function App() {
 
   const handlePreviousQuestion = () => {
     if (goToPreviousQuestion()) {
-      clearExecutionResult();
+      const targetQuestion = questions[currentQuestionIndex - 1];
+      const savedSubmission = targetQuestion
+        ? submissionsByQuestion[targetQuestion.id]
+        : null;
+      setExecutionResult(
+        savedSubmission ? { ...savedSubmission, skipAnimation: true } : null
+      );
     }
   };
 
   const handleNextQuestion = () => {
     if (goToNextQuestion()) {
-      clearExecutionResult();
+      const targetQuestion = questions[currentQuestionIndex + 1];
+      const savedSubmission = targetQuestion
+        ? submissionsByQuestion[targetQuestion.id]
+        : null;
+      setExecutionResult(
+        savedSubmission ? { ...savedSubmission, skipAnimation: true } : null
+      );
     }
   };
 
@@ -94,51 +119,53 @@ function App() {
     });
   };
 
-  const handleSubmitClick = () => {
-    if (isLocked || showConfirmDialog) return;
+  const handleSubmitSolution = async () => {
+    if (isLocked) return;
+    await submitSolution({
+      question: currentQuestion,
+      language: selectedLanguage,
+      sourceCode: currentCode,
+      activeLanguageName,
+      isLocked,
+    });
+  };
 
-    if (currentCode.trim() === "") {
-      setExecutionResult({
-        status: "error",
-        error: "Editor is empty. Please write your solution before submitting.",
-        output: "",
-        executionTime: null,
-      });
-      return;
-    }
-    clearExecutionResult();
+  const handleFinishAssessmentClick = () => {
+    if (isLocked || showConfirmDialog) return;
     setShowConfirmDialog(true);
   };
 
-  const handleConfirmSubmit = () => {
+  const handleConfirmFinish = () => {
     setShowConfirmDialog(false);
     setIsSubmitted(true);
   };
 
-  const handleCancelSubmit = () => {
+  const handleCancelFinish = () => {
     setShowConfirmDialog(false);
   };
 
   // Cross-platform keyboard shortcuts (Ctrl/⌘ + Enter to run, Ctrl/⌘ + Shift + Enter to submit)
   useKeyboardShortcuts({
     onRunCode: handleRunCode,
-    onSubmit: handleSubmitClick,
+    onSubmit: handleSubmitSolution,
     disabled: isLocked || showConfirmDialog,
   });
 
   return (
-    <main className="flex h-screen flex-col bg-slate-100 text-slate-800 overflow-hidden">
+    <main className="flex h-full flex-col bg-slate-100 text-slate-800 overflow-hidden">
       <AssessmentHeader
         testName="DSA Coding Assessment"
         formattedTime={formattedTime}
         isUrgent={isUrgent}
         isTimeUp={isTimeUp}
+        onFinishAssessment={handleFinishAssessmentClick}
+        isLocked={isLocked}
       />
 
       {showConfirmDialog && (
         <ConfirmDialog
-          onConfirm={handleConfirmSubmit}
-          onCancel={handleCancelSubmit}
+          onConfirm={handleConfirmFinish}
+          onCancel={handleCancelFinish}
         />
       )}
 
@@ -154,6 +181,11 @@ function App() {
             onNext={handleNextQuestion}
             isFirstQuestion={isFirstQuestion}
             isLastQuestion={isLastQuestion}
+            submissionStatus={
+              currentQuestion
+                ? submissionsByQuestion[currentQuestion.id]?.status
+                : null
+            }
           />
 
           <EditorPanel
@@ -163,8 +195,10 @@ function App() {
             onLanguageChange={handleLanguageChange}
             onCodeChange={handleCodeChange}
             onRunCode={handleRunCode}
-            onSubmit={handleSubmitClick}
+            onSubmit={handleSubmitSolution}
             isRunning={isRunning}
+            isRunningCode={isRunningCode}
+            isSubmitting={isSubmitting}
             isLocked={isLocked}
             customInput={currentCustomInput}
             onCustomInputChange={handleCustomInputChange}

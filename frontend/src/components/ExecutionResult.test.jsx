@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import ExecutionResult from "./ExecutionResult";
 import { rawTextNormalizer } from "../test/utils";
 
@@ -127,4 +127,65 @@ describe("ExecutionResult", () => {
       ).toBeInTheDocument();
     });
   });
+
+  describe("automatic evaluation granular results", () => {
+    test("displays Wrong Answer banner with passed/total count and masked hidden test case", () => {
+      const granularResult = {
+        status: "wrong_answer",
+        verdict: "WRONG_ANSWER",
+        passedCount: 8,
+        totalCount: 10,
+        language: "Java",
+        executionTime: 120,
+        cases: [
+          {
+            id: "c-1",
+            name: "Test Case 1",
+            passed: true,
+            hidden: false,
+            inputs: { nums: [2, 7, 11, 15], target: 9 },
+            output: "[0, 1]",
+            expected: [0, 1],
+          },
+          {
+            id: "c-2",
+            name: "Test Case 2",
+            passed: false,
+            hidden: true,
+          },
+        ],
+      };
+
+      render(
+        <ExecutionResult result={granularResult} isRunning={false} />
+      );
+
+      // Status header
+      expect(screen.getByText("✗ Wrong Answer")).toBeInTheDocument();
+      expect(
+        screen.getByText("(8 / 10 test cases passed)")
+      ).toBeInTheDocument();
+      expect(screen.getByText(/Execution time: 120 ms/)).toBeInTheDocument();
+
+      // Case 1 (visible) shows inputs & outputs
+      expect(screen.getByText("Test Case 1")).toBeInTheDocument();
+      expect(screen.getByText("Test Case 2")).toBeInTheDocument();
+      expect(screen.getByText("Your Output")).toBeInTheDocument();
+      expect(screen.getAllByText("[0, 1]")).toHaveLength(2);
+
+      // Switch to Case 2 (hidden)
+      fireEvent.click(screen.getByRole("tab", { name: /Test Case 2/ }));
+
+      // Hidden test case protects inputs and expected outputs
+      expect(screen.getByText("Hidden Test Case")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "This test case is hidden to maintain assessment integrity. Inputs and expected output values are kept exclusively on the server."
+        )
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Your Output")).not.toBeInTheDocument();
+      expect(screen.queryByText("Expected Output")).not.toBeInTheDocument();
+    });
+  });
 });
+

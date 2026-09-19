@@ -7,9 +7,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.codingplatform.backend.dto.EvaluationResult;
 import com.codingplatform.backend.dto.ExecutionResponse;
 import com.codingplatform.backend.dto.ExecutionStatus;
+import com.codingplatform.backend.dto.TestCaseResult;
+import com.codingplatform.backend.service.EvaluationService;
 import com.codingplatform.backend.service.ExecutionService;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -23,6 +27,7 @@ class ExecutionControllerTest {
     @Autowired private MockMvc mockMvc;
 
     @MockitoBean private ExecutionService executionService;
+    @MockitoBean private EvaluationService evaluationService;
 
     @Test
     void shouldReturnSuccessfulExecutionResponse() throws Exception {
@@ -84,5 +89,67 @@ class ExecutionControllerTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(executionService);
+    }
+
+    @Test
+    void shouldReturnEvaluationResultOnSubmit() throws Exception {
+        EvaluationResult evaluationResult =
+                new EvaluationResult(
+                        ExecutionStatus.SUCCESS,
+                        2,
+                        2,
+                        30,
+                        2048,
+                        null,
+                        List.of(
+                                new TestCaseResult(
+                                        "c-1",
+                                        "Example 1",
+                                        "PASSED",
+                                        false,
+                                        "in",
+                                        "out",
+                                        "out",
+                                        15),
+                                new TestCaseResult(
+                                        "c-2", "Example 2", "PASSED", true, null, null, null, 15)));
+
+        when(evaluationService.evaluate(any())).thenReturn(evaluationResult);
+
+        mockMvc.perform(
+                        post("/api/v1/executions/submit")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "questionId": "two-sum",
+                                          "language": "java",
+                                          "sourceCode": "class Solution {}"
+                                        }
+                                        """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.passed").value(2))
+                .andExpect(jsonPath("$.total").value(2))
+                .andExpect(jsonPath("$.testCases[0].status").value("PASSED"))
+                .andExpect(jsonPath("$.testCases[1].hidden").value(true));
+    }
+
+    @Test
+    void shouldRejectSubmitWithMissingQuestionId() throws Exception {
+        mockMvc.perform(
+                        post("/api/v1/executions/submit")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(
+                                        """
+                                        {
+                                          "questionId": "",
+                                          "language": "java",
+                                          "sourceCode": "class Solution {}"
+                                        }
+                                        """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(evaluationService);
     }
 }

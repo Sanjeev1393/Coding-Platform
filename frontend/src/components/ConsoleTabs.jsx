@@ -31,7 +31,10 @@ function ConsoleTabs({
 }) {
   const hasResult =
     Boolean(executionResult) && executionResult.status !== "idle";
-  const shouldOpenInitially = defaultOpen || isRunning || hasResult;
+  // Submissions restored across question navigation have skipAnimation: true and should stay collapsed by default
+  const isRestoredResult = Boolean(executionResult?.skipAnimation);
+  const shouldOpenInitially =
+    defaultOpen || isRunning || (hasResult && !isRestoredResult);
   const initialActiveTab = isRunning || hasResult ? "result" : "testcase";
 
   const [isOpen, setIsOpen] = useState(shouldOpenInitially);
@@ -43,7 +46,7 @@ function ConsoleTabs({
     hasResult !== prevRunState.hasResult
   ) {
     setPrevRunState({ isRunning, hasResult });
-    if (isRunning || hasResult) {
+    if (isRunning || (hasResult && !isRestoredResult)) {
       setIsOpen(true);
       setActiveTab("result");
     }

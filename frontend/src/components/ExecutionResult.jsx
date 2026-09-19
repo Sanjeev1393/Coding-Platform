@@ -1,14 +1,19 @@
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Loader2 } from "lucide-react";
-import { formatValue } from "../utils/formatValue";
+import ExecutionResultBanner from "./ExecutionResultBanner";
+import TestCaseAccordionItem from "./TestCaseAccordionItem";
 
-function formatInputs(inputs) {
-  if (!inputs || typeof inputs !== "object") return String(inputs ?? "");
-  return Object.entries(inputs)
-    .map(([k, v]) => `${k} = ${formatValue(v)}`)
-    .join("\n");
-}
-
+/**
+ * ExecutionResult coordinates the display of running spinners, compilation/runtime
+ * error outputs, and the sequential step-through test case evaluation accordion.
+ *
+ * @param {Object} props
+ * @param {Object|null} props.result - Execution outcome from runSolution or submitSolution
+ * @param {boolean} [props.isRunning=false] - True while execution is actively running
+ * @param {string} [props.languageName=""] - Display name of the active language
+ * @param {number} [props.questionNumber=1] - 1-based index of the active question
+ * @param {string} [props.className=""] - Optional extra CSS container classes
+ */
 function ExecutionResult({
   result,
   isRunning = false,
@@ -16,7 +21,75 @@ function ExecutionResult({
   questionNumber,
   className = "",
 }) {
-  const [selectedCaseIdx, setSelectedCaseIdx] = useState(0);
+  const cases = useMemo(
+    () => (Array.isArray(result?.cases) ? result.cases : null),
+    [result?.cases]
+  );
+
+  const isTestEnv = useMemo(
+    () =>
+      typeof window !== "undefined" &&
+      (navigator.userAgent.includes("jsdom") ||
+        Boolean(
+          window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
+        )),
+    []
+  );
+
+  const firstFailureIdx = useMemo(
+    () => (cases ? cases.findIndex((c) => !c.passed) : -1),
+    [cases]
+  );
+
+  const targetEndIdx = useMemo(
+    () =>
+      cases
+        ? firstFailureIdx !== -1
+          ? firstFailureIdx
+          : cases.length - 1
+        : -1,
+    [cases, firstFailureIdx]
+  );
+
+  const skipAnimation = Boolean(result?.skipAnimation) || isTestEnv;
+
+  const [animatingCount, setAnimatingCount] = useState(0);
+  const [userExpandedIdx, setUserExpandedIdx] = useState(null);
+
+  const isAnimationDone = skipAnimation || animatingCount > targetEndIdx;
+  const isEvaluating = Boolean(cases) && !isAnimationDone;
+  const evaluatedCount = isAnimationDone ? targetEndIdx + 1 : animatingCount;
+
+  const expandedCaseIdx = userExpandedIdx !== null ? userExpandedIdx : 0;
+
+  // Sequential progression effect in browser environments
+  useEffect(() => {
+    if (skipAnimation || !cases || cases.length === 0) return;
+
+    let current = 0;
+    const interval = setInterval(() => {
+      current += 1;
+      setAnimatingCount(current);
+
+      if (current > targetEndIdx) {
+        clearInterval(interval);
+      }
+    }, 260);
+
+    return () => clearInterval(interval);
+  }, [cases, skipAnimation, targetEndIdx]);
+
+  const handleSkipAnimation = () => {
+    if (!cases) return;
+    setAnimatingCount(targetEndIdx + 1);
+  };
+
+  const handleToggleCase = (idx) => {
+    setUserExpandedIdx((prev) => {
+      const current = prev !== null ? prev : 0;
+      return current === idx ? -1 : idx;
+    });
+  };
 
   if (isRunning) {
     const runningMessage =
@@ -30,7 +103,7 @@ function ExecutionResult({
       <div
         role="region"
         aria-label="Execution result"
-        className={`${className || "mt-4"} flex items-center gap-3 rounded-md border border-blue-200 bg-blue-50 p-4 text-blue-900`}
+        className={`${className || "mt-4"} flex items-center gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-900 shadow-xs`}
       >
         <Loader2
           className="h-5 w-5 animate-spin text-blue-600"
@@ -64,178 +137,148 @@ function ExecutionResult({
         ? "Compiler error details"
         : errorType === "runtime"
           ? "Runtime exception details"
-          : "Error details";
+          : "Execution error";
+
+    const badgeLabel =
+      errorType === "compilation"
+        ? "Compile-time"
+        : errorType === "runtime"
+          ? "Runtime"
+          : "Execution";
 
     return (
       <div
         role="region"
         aria-label="Execution result"
-        className={`${className || "mt-4"} rounded-md border border-red-200 bg-red-50 p-4 text-red-800`}
+        className={`${className || "mt-4"} rounded-lg border border-red-200 bg-red-50 p-4 text-red-900 shadow-xs`}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-red-700">✗ {errorTitle}</span>
-            {errorType !== "error" && (
-              <span className="rounded bg-red-200/80 px-1.5 py-0.5 text-[10px] font-semibold text-red-800 uppercase tracking-wider">
-                {errorType === "compilation" ? "Compile-time" : "Runtime"}
-              </span>
-            )}
+            <span className="font-bold text-red-900">✗ {errorTitle}</span>
+            <span className="rounded-full border border-red-200 bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
+              {badgeLabel}
+            </span>
           </div>
           {result.language && (
-            <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-800">
+            <span className="rounded-full border border-red-200 bg-red-100 px-2.5 py-0.5 text-xs font-semibold text-red-800">
               {result.language}
             </span>
           )}
         </div>
-        <p className="mt-2.5 text-xs font-medium uppercase tracking-wider text-red-600">
-          {errorSubtitle}
-        </p>
-        <pre className="mt-1 max-h-[160px] overflow-y-auto rounded-md bg-white p-3 font-mono text-sm text-red-700 border border-red-100 whitespace-pre-wrap">
-          {result.error || "An unexpected error occurred during execution."}
-        </pre>
+
+        <div className="mt-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-red-700">
+            {errorSubtitle}
+          </p>
+          <pre
+            tabIndex={0}
+            role="region"
+            aria-label="Error details"
+            className="mt-1.5 max-h-48 overflow-auto rounded bg-white p-3 font-mono text-xs whitespace-pre-wrap break-words text-red-800 border border-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+          >
+            {result.error || "An unexpected error occurred."}
+          </pre>
+        </div>
       </div>
     );
   }
 
-  const isWrongAnswer = status === "wrong_answer";
-  const title = isWrongAnswer
-    ? "Wrong Answer"
-    : status === "accepted"
-      ? "Accepted"
-      : "Success";
+  // Multi-case or Single-run Banner Information
+  const isMultiCase = cases && cases.length > 0;
+  const isAccepted = status === "accepted" || status === "success";
+  const title = isAccepted
+    ? status === "success"
+      ? "✓ Success"
+      : "✓ Accepted"
+    : "✗ Wrong Answer";
 
-  const containerBg = isWrongAnswer
-    ? "border-red-200 bg-red-50/60"
-    : "border-green-200 bg-green-50";
-  const titleColor = isWrongAnswer ? "text-red-700" : "text-green-700";
-  const badgeBg = isWrongAnswer ? "bg-red-100 text-red-800" : "bg-green-100 text-green-800";
+  const subtitle =
+    result.passedCount !== undefined && result.totalCount !== undefined
+      ? `(${result.passedCount} / ${result.totalCount} test cases passed)`
+      : null;
 
-  const cases = Array.isArray(result.cases) ? result.cases : null;
-  const safeIdx =
-    cases && selectedCaseIdx >= 0 && selectedCaseIdx < cases.length
-      ? selectedCaseIdx
-      : 0;
-  const activeCase = cases ? cases[safeIdx] : null;
+  const badgeStyle = !isAccepted
+    ? "bg-red-100 text-red-800 border-red-200"
+    : "bg-green-100 text-green-800 border-green-200";
+
+  const containerBg = isMultiCase
+    ? "border-slate-200 bg-white"
+    : isAccepted
+      ? "border-green-200 bg-green-50"
+      : "border-red-200 bg-red-50";
 
   return (
     <div
       role="region"
       aria-label="Execution result"
-      className={`${className || "mt-4"} rounded-md border ${containerBg} p-4 text-slate-800`}
+      className={`${className || "mt-4"} rounded-lg border ${containerBg} p-4 text-slate-800 shadow-xs`}
     >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className={`text-sm font-semibold ${titleColor}`}>
-            {isWrongAnswer ? "✗" : "✓"} {title}
-          </span>
-          {result.passedCount !== undefined && result.totalCount !== undefined && (
-            <span className="text-xs text-slate-500">
-              ({result.passedCount} / {result.totalCount} test cases passed)
-            </span>
-          )}
-          {result.executionTime !== undefined &&
-            result.executionTime !== null && (
-              <span className="text-xs text-slate-500">
-                • Execution time:{" "}
-                {typeof result.executionTime === "number"
-                  ? `${result.executionTime} ms`
-                  : result.executionTime}
-              </span>
-            )}
-        </div>
-        {result.language && (
-          <span className={`rounded ${badgeBg} px-2 py-0.5 text-xs font-semibold`}>
-            {result.language}
-          </span>
-        )}
-      </div>
+      {/* Decomposed Header Banner */}
+      <ExecutionResultBanner
+        title={title}
+        subtitle={subtitle}
+        badgeStyle={badgeStyle}
+        result={result}
+        isEvaluating={isEvaluating}
+        casesCount={cases ? cases.length : 0}
+        onSkipAnimation={handleSkipAnimation}
+      />
 
-      {/* Multi-case sub-tabs if present */}
-      {cases && cases.length > 1 && (
+      {/* Sequential Test-Case Rows */}
+      {isMultiCase ? (
         <div
           role="tablist"
           aria-label="Result case selector"
-          className="mt-3 flex items-center gap-2 border-b border-slate-200/70 pb-2"
+          className="mt-3.5 space-y-2"
         >
           {cases.map((c, idx) => {
-            const isSelected = idx === safeIdx;
+            const isEvaluated = idx < evaluatedCount;
+            const isCurrent =
+              isEvaluating &&
+              idx === evaluatedCount &&
+              (firstFailureIdx === -1 || idx <= firstFailureIdx);
+            const isExpanded = idx === expandedCaseIdx;
+
             return (
-              <button
+              <TestCaseAccordionItem
                 key={c.id || idx}
-                type="button"
-                role="tab"
-                aria-selected={isSelected}
-                onClick={() => setSelectedCaseIdx(idx)}
-                className={`cursor-pointer inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                  isSelected
-                    ? "bg-white shadow-xs text-slate-900 ring-1 ring-slate-200"
-                    : "bg-slate-100/70 text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                <span
-                  className={`text-xs font-bold ${
-                    c.passed ? "text-emerald-600" : "text-red-600"
-                  }`}
-                >
-                  {c.passed ? "✓" : "✗"}
-                </span>
-                <span>{c.name || `Case ${idx + 1}`}</span>
-              </button>
+                c={c}
+                idx={idx}
+                isEvaluated={isEvaluated}
+                isCurrent={isCurrent}
+                isExpanded={isExpanded}
+                firstFailureIdx={firstFailureIdx}
+                onToggle={handleToggleCase}
+              />
             );
           })}
         </div>
-      )}
-
-      {/* Case Details */}
-      {activeCase ? (
-        <div className="mt-3 space-y-2.5">
-          <div>
-            <p className="text-xs font-medium text-slate-600">Input</p>
-            <pre className="mt-1 rounded-md bg-white p-2.5 font-mono text-xs text-slate-800 border border-slate-200 whitespace-pre-wrap">
-              {formatInputs(activeCase.inputs || activeCase.input)}
-            </pre>
-          </div>
-
-          <div>
-            <p className="text-xs font-medium text-slate-600">Your Output</p>
-            <pre
-              className={`mt-1 rounded-md bg-white p-2.5 font-mono text-xs border whitespace-pre-wrap ${
-                activeCase.passed
-                  ? "text-slate-800 border-slate-200"
-                  : "text-red-700 font-semibold border-red-200 bg-red-50/30"
-              }`}
-            >
-              {activeCase.output !== undefined && activeCase.output !== null && activeCase.output !== ""
-                ? activeCase.output
-                : "No output returned"}
-            </pre>
-          </div>
-
-          {activeCase.expected !== undefined && (
-            <div>
-              <p className="text-xs font-medium text-slate-600">Expected Output</p>
-              <pre className="mt-1 rounded-md bg-white p-2.5 font-mono text-xs text-slate-800 border border-slate-200 whitespace-pre-wrap">
-                {formatValue(activeCase.expected)}
-              </pre>
-            </div>
-          )}
-        </div>
       ) : (
+        /* Single Run Output (Custom Input mode) */
         <>
           {result.input !== undefined &&
             result.input !== null &&
             result.input.trim() !== "" && (
               <div className="mt-3">
-                <p className="text-xs font-medium text-slate-600">Custom Input</p>
-                <pre className="mt-1 max-h-[120px] overflow-y-auto rounded-md bg-white p-2.5 font-mono text-xs text-slate-800 border border-green-100 whitespace-pre-wrap">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Custom Input
+                </p>
+                <pre className="mt-1.5 max-h-48 overflow-auto rounded bg-white p-3 font-mono text-xs whitespace-pre-wrap break-words text-slate-800 border border-green-100">
                   {result.input}
                 </pre>
               </div>
             )}
 
           <div className="mt-3">
-            <p className="text-xs font-medium text-slate-600">Output</p>
-            <pre className="mt-1 max-h-[160px] overflow-y-auto rounded-md bg-white p-3 font-mono text-sm text-slate-800 border border-green-100 whitespace-pre-wrap">
+            <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Output
+            </p>
+            <pre
+              tabIndex={0}
+              role="region"
+              aria-label="Execution output"
+              className="mt-1.5 max-h-48 overflow-auto rounded bg-white p-3 font-mono text-xs whitespace-pre-wrap break-words text-slate-800 border border-green-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
               {result.output || "No output returned."}
             </pre>
           </div>

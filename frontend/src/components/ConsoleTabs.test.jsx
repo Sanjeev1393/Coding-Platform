@@ -115,6 +115,34 @@ describe("ConsoleTabs", () => {
       expect(within(resultRegion).getByText("[0, 1]")).toBeInTheDocument();
     });
 
+    test("remains collapsed when execution result is restored from navigation (skipAnimation: true)", () => {
+      const restoredResult = {
+        status: "accepted",
+        language: "Java",
+        output: "[0, 1]",
+        skipAnimation: true,
+      };
+
+      render(
+        <ConsoleTabs
+          testCases={mockTestCases}
+          selectedCaseIndex={0}
+          onSelectCase={vi.fn()}
+          isRunning={false}
+          executionResult={restoredResult}
+          languageName="Java"
+          questionNumber={1}
+        />
+      );
+
+      const resultTab = screen.getByRole("button", { name: /test result/i });
+      expect(resultTab).toBeInTheDocument();
+      expect(resultTab).toHaveAttribute("aria-expanded", "false");
+      expect(
+        screen.queryByRole("region", { name: "Execution result" })
+      ).not.toBeInTheDocument();
+    });
+
     test("allows candidate to switch between Testcase and Test Result tabs seamlessly", async () => {
       const user = userEvent.setup();
       const successResult = {
