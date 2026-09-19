@@ -1,3 +1,12 @@
+/**
+ * Modal confirmation dialog shown when the candidate clicks "Finish Assessment",
+ * prompting for final submission confirmation before locking the entire test.
+ *
+ * @param {Object} props
+ * @param {Function} props.onConfirm - Callback triggered when candidate confirms final submission
+ * @param {Function} props.onCancel - Callback triggered when candidate dismisses the dialog
+ * @returns {JSX.Element} The rendered modal dialog
+ */
 function ConfirmDialog({ onConfirm, onCancel }) {
   return (
     <div
@@ -26,7 +35,7 @@ function ConfirmDialog({ onConfirm, onCancel }) {
           <button
             type="button"
             onClick={onConfirm}
-            className="cursor-pointer rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+            className="cursor-pointer rounded-md bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow-xs transition hover:bg-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-2"
           >
             Yes, submit
           </button>

@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, act, within } from "@testing-library/react";
 import App from "./App";
-import { questions as defaultQuestions } from "./constants";
+import { mockQuestions as defaultQuestions } from "./__tests__/mockQuestions";
 import { getStarterCode } from "./utils/languageUtils";
 
 // ─── Module Mocking ────────────────────────────────────────────────────────────
@@ -79,17 +79,116 @@ vi.mock("./services/executionApi", () => ({
       memoryKb: 2048,
     });
   }),
+  submitCode: vi.fn((payload) => {
+    const sourceCode = payload?.sourceCode || "";
+    if (sourceCode.includes("// compile-error")) {
+      return Promise.resolve({
+        status: "COMPILATION_ERROR",
+        passed: 0,
+        total: 4,
+        errorMessage: "Solution.java:3: error: ';' expected\n2 errors",
+        testCases: [],
+      });
+    }
+    if (sourceCode.includes("// runtime-error")) {
+      return Promise.resolve({
+        status: "RUNTIME_ERROR",
+        passed: 0,
+        total: 4,
+        errorMessage: "ArithmeticException: / by zero",
+        testCases: [],
+      });
+    }
+    if (sourceCode.includes("// wrong-answer")) {
+      return Promise.resolve({
+        status: "WRONG_ANSWER",
+        passed: 2,
+        total: 4,
+        totalExecutionTimeMs: 40,
+        maxMemoryKb: 2048,
+        testCases: [
+          {
+            id: "c-1",
+            name: "Example 1",
+            status: "PASSED",
+            hidden: false,
+            input: "[2, 7, 11, 15]\n9",
+            expectedOutput: "[0, 1]",
+            actualOutput: "[0, 1]",
+          },
+          {
+            id: "c-2",
+            name: "Example 2",
+            status: "PASSED",
+            hidden: false,
+            input: "[3, 2, 4]\n6",
+            expectedOutput: "[1, 2]",
+            actualOutput: "[1, 2]",
+          },
+          {
+            id: "c-3",
+            name: "Hidden Case 1",
+            status: "FAILED",
+            hidden: true,
+          },
+          {
+            id: "c-4",
+            name: "Hidden Case 2",
+            status: "FAILED",
+            hidden: true,
+          },
+        ],
+      });
+    }
+    return Promise.resolve({
+      status: "SUCCESS",
+      passed: 4,
+      total: 4,
+      totalExecutionTimeMs: 45,
+      maxMemoryKb: 2048,
+      testCases: [
+        {
+          id: "c-1",
+          name: "Example 1",
+          status: "PASSED",
+          hidden: false,
+          input: "[2, 7, 11, 15]\n9",
+          expectedOutput: "[0, 1]",
+          actualOutput: "[0, 1]",
+        },
+        {
+          id: "c-2",
+          name: "Example 2",
+          status: "PASSED",
+          hidden: false,
+          input: "[3, 2, 4]\n6",
+          expectedOutput: "[1, 2]",
+          actualOutput: "[1, 2]",
+        },
+        {
+          id: "c-3",
+          name: "Hidden Case 1",
+          status: "PASSED",
+          hidden: true,
+        },
+        {
+          id: "c-4",
+          name: "Hidden Case 2",
+          status: "PASSED",
+          hidden: true,
+        },
+      ],
+    });
+  }),
 }));
 
-vi.mock("./constants", async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    get questions() {
-      return mockQuestions !== null ? mockQuestions : actual.questions;
-    },
-  };
-});
+vi.mock("./hooks/useQuestions", () => ({
+  useQuestions: () => ({
+    questions: mockQuestions !== null ? mockQuestions : defaultQuestions,
+    isLoading: false,
+    error: null,
+  }),
+}));
 
 // ─── Interaction Strategy ──────────────────────────────────────────────────────
 // fireEvent is deliberately used in full-flow integration tests rather than userEvent
@@ -583,7 +682,7 @@ describe("App — full assessment flow", () => {
       render(<App />);
 
       // Submit assessment
-      fireEvent.click(screen.getByRole("button", { name: "Submit solution" }));
+      fireEvent.click(screen.getByRole("button", { name: "Finish Assessment" }));
       fireEvent.click(screen.getByRole("button", { name: "Yes, submit" }));
 
       expect(screen.getByRole("button", { name: "Run code" })).toBeDisabled();
@@ -643,7 +742,7 @@ describe("App — full assessment flow", () => {
       expect(screen.getByText(/✓ Accepted/)).toBeInTheDocument();
     });
 
-    test("Ctrl + Shift + Enter opens submission confirmation dialog", () => {
+    test("Ctrl + Shift + Enter submits solution for automated evaluation", async () => {
       render(<App />);
 
       fireEvent.keyDown(window, {
@@ -652,13 +751,13 @@ describe("App — full assessment flow", () => {
         shiftKey: true,
       });
 
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
-      expect(
-        screen.getByRole("heading", { name: "Submit solution?" })
-      ).toBeInTheDocument();
+      await advanceSecondsAsync(1);
+
+      expect(screen.getByText(/✓ Accepted/)).toBeInTheDocument();
+      expect(screen.getByText(/(4 \/ 4 test cases passed)/)).toBeInTheDocument();
     });
 
-    test("⌘ + Shift + Enter opens submission confirmation dialog (macOS)", () => {
+    test("⌘ + Shift + Enter submits solution for automated evaluation (macOS)", async () => {
       render(<App />);
 
       fireEvent.keyDown(window, {
@@ -667,7 +766,9 @@ describe("App — full assessment flow", () => {
         shiftKey: true,
       });
 
-      expect(screen.getByRole("dialog")).toBeInTheDocument();
+      await advanceSecondsAsync(1);
+
+      expect(screen.getByText(/✓ Accepted/)).toBeInTheDocument();
     });
 
     test(
@@ -682,20 +783,104 @@ describe("App — full assessment flow", () => {
         expect(screen.queryByRole("button", { name: "Running…" })).not.toBeInTheDocument();
 
         fireEvent.keyDown(window, { key: "Enter", ctrlKey: true, shiftKey: true });
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Submitting…" })).not.toBeInTheDocument();
       },
       15000
     );
   });
 
-  // ─── Submission flow ─────────────────────────────────────────────────────────
+  // ─── Submission and Evaluation flow ──────────────────────────────────────────
 
-  describe("submission flow", () => {
-    test("confirm Submit: submission-success feedback appears", () => {
+  describe("submission and evaluation flow", () => {
+    test("submitting solution evaluates all test cases and shows granular results", async () => {
       render(<App />);
 
       fireEvent.click(
         screen.getByRole("button", { name: "Submit solution" })
+      );
+
+      await advanceSecondsAsync(1);
+
+      expect(screen.getByText(/✓ Accepted/)).toBeInTheDocument();
+      expect(screen.getByText(/(4 \/ 4 test cases passed)/)).toBeInTheDocument();
+      expect(screen.getByText("Example 1")).toBeInTheDocument();
+      expect(screen.getByText("Hidden Case 1")).toBeInTheDocument();
+    });
+
+    test("submitting wrong solution displays Wrong Answer and passed/total count", async () => {
+      render(<App />);
+
+      const editor = screen.getByRole("textbox", { name: "Code editor" });
+      fireEvent.change(editor, {
+        target: { value: "class Solution { // wrong-answer \n}" },
+      });
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Submit solution" })
+      );
+
+      await advanceSecondsAsync(1);
+
+      expect(screen.getByText(/✗ Wrong Answer/)).toBeInTheDocument();
+      expect(screen.getByText(/(2 \/ 4 test cases passed)/)).toBeInTheDocument();
+    });
+
+    test("empty code cannot be submitted and displays validation error", () => {
+      render(<App />);
+
+      const editor = screen.getByRole("textbox", { name: "Code editor" });
+      fireEvent.change(editor, { target: { value: "   " } });
+
+      fireEvent.click(screen.getByRole("button", { name: "Submit solution" }));
+
+      expect(
+        screen.getByText(
+          "Editor is empty. Please write your solution before submitting."
+        )
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Submitting…" })
+      ).not.toBeInTheDocument();
+    });
+
+    test("submission result is preserved across question navigation with Solved badge while run output is cleared", async () => {
+      render(<App />);
+
+      // Submit solution on Question 1
+      fireEvent.click(screen.getByRole("button", { name: "Submit solution" }));
+      await advanceSecondsAsync(1);
+
+      // Question 1 displays Accepted verdict and Solved status badge
+      expect(screen.getByText(/✓ Accepted/)).toBeInTheDocument();
+      expect(screen.getByText("✓ Solved")).toBeInTheDocument();
+
+      // Navigate to Question 2: Question 2 has no submission, output is empty and no Solved badge
+      fireEvent.click(screen.getByRole("button", { name: "Next" }));
+      expect(screen.getByText("Question 2 of 2")).toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Execution result" })).not.toBeInTheDocument();
+      expect(screen.queryByText("✓ Solved")).not.toBeInTheDocument();
+
+      // Navigate back to Question 1: Question 1's submission is preserved, Solved badge shown, but console tab starts collapsed
+      fireEvent.click(screen.getByRole("button", { name: "Previous" }));
+      expect(screen.getByText("Question 1 of 2")).toBeInTheDocument();
+      expect(screen.getByText("✓ Solved")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("region", { name: "Execution result" })
+      ).not.toBeInTheDocument();
+
+      // Expanding the Test Result tab reveals the preserved Accepted execution result
+      fireEvent.click(screen.getByRole("button", { name: /test result/i }));
+      expect(
+        screen.getByRole("region", { name: "Execution result" })
+      ).toBeInTheDocument();
+      expect(screen.getByText(/✓ Accepted/)).toBeInTheDocument();
+    });
+
+    test("confirm Finish Assessment: submission-success feedback appears", () => {
+      render(<App />);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Finish Assessment" })
       );
 
       // Confirm dialog appears
@@ -729,11 +914,11 @@ describe("App — full assessment flow", () => {
       ).toBeDisabled();
     });
 
-    test("cancel Submit: submission does not happen", () => {
+    test("cancel Finish Assessment: submission does not happen", () => {
       render(<App />);
 
       fireEvent.click(
-        screen.getByRole("button", { name: "Submit solution" })
+        screen.getByRole("button", { name: "Finish Assessment" })
       );
 
       expect(screen.getByRole("dialog")).toBeInTheDocument();
@@ -758,17 +943,17 @@ describe("App — full assessment flow", () => {
       ).toBeEnabled();
     });
 
-    test("click Submit repeatedly: only one submission is processed", () => {
+    test("click Finish Assessment repeatedly: only one submission dialog is processed", () => {
       render(<App />);
 
-      const submitBtn = screen.getByRole("button", { name: "Submit solution" });
-      fireEvent.click(submitBtn);
+      const finishBtn = screen.getByRole("button", { name: "Finish Assessment" });
+      fireEvent.click(finishBtn);
 
       // Dialog is open
       expect(screen.getByRole("dialog")).toBeInTheDocument();
 
-      // Clicking submit again while dialog is open does not spawn multiple dialogs
-      fireEvent.click(submitBtn);
+      // Clicking finish again while dialog is open does not spawn multiple dialogs
+      fireEvent.click(finishBtn);
       expect(screen.getAllByRole("dialog")).toHaveLength(1);
 
       // Confirm submit
@@ -778,20 +963,20 @@ describe("App — full assessment flow", () => {
         screen.getByText("✓ Solution submitted successfully.")
       ).toBeInTheDocument();
 
-      // Submit button is now disabled (locked)
-      expect(submitBtn).toBeDisabled();
-      fireEvent.click(submitBtn);
+      // Finish button is now disabled (locked)
+      expect(finishBtn).toBeDisabled();
+      fireEvent.click(finishBtn);
 
       // No dialog reopens
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
 
-    test("navigate after submission: behaviour follows chosen business rule", () => {
+    test("navigate after finishing assessment: entire assessment remains locked", () => {
       render(<App />);
 
-      // Submit on Question 1
+      // Finish assessment on Question 1
       fireEvent.click(
-        screen.getByRole("button", { name: "Submit solution" })
+        screen.getByRole("button", { name: "Finish Assessment" })
       );
       fireEvent.click(screen.getByRole("button", { name: "Yes, submit" }));
 
@@ -1075,8 +1260,8 @@ describe("App — full assessment flow", () => {
       });
       fireEvent.change(langSelect, { target: { value: "python" } });
 
-      // Click Submit and confirm
-      fireEvent.click(screen.getByRole("button", { name: "Submit solution" }));
+      // Click Finish Assessment and confirm
+      fireEvent.click(screen.getByRole("button", { name: "Finish Assessment" }));
       fireEvent.click(screen.getByRole("button", { name: "Yes, submit" }));
 
       // Submission banner mentions Python
