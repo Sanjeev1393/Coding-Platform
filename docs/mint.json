@@ -1,0 +1,78 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Coding Platform",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#6366f1",
+    "light": "#818cf8",
+    "dark": "#4f46e5",
+    "background": {
+      "light": "#ffffff",
+      "dark": "#0f0f1a"
+    }
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/Sanjeev1393/Coding-Platform"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Live App",
+    "url": "https://coding-platform-silk.vercel.app/"
+  },
+  "tabs": [
+    {
+      "name": "Engineering",
+      "url": "engineering"
+    }
+  ],
+  "anchors": [
+    {
+      "name": "GitHub",
+      "icon": "github",
+      "url": "https://github.com/Sanjeev1393/Coding-Platform"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Project",
+      "pages": [
+        "overview",
+        "architecture",
+        "api-design",
+        "code-execution",
+        "deployment"
+      ]
+    },
+    {
+      "group": "Architecture Decisions",
+      "pages": [
+        "decisions/ADR-001-execution-service",
+        "decisions/ADR-003-jdoodle-vs-piston"
+      ]
+    },
+    {
+      "group": "Incidents",
+      "pages": [
+        "incidents/INC-001-production-api-url",
+        "incidents/INC-002-execution-latency"
+      ]
+    },
+    {
+      "group": "Engineering",
+      "pages": ["engineering/journal", "engineering/interview-map"]
+    },
+    {
+      "group": "System Design",
+      "pages": ["system-design/evolution"]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/Sanjeev1393/Coding-Platform"
+  }
+}
