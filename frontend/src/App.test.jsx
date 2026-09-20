@@ -6,6 +6,8 @@ import { getStarterCode } from "./utils/languageUtils";
 // ─── Module Mocking ────────────────────────────────────────────────────────────
 
 let mockQuestions = null;
+let mockIsLoading = false;
+let mockError = null;
 
 vi.mock("./services/executionApi", () => ({
   executeCode: vi.fn((payload) => {
@@ -185,8 +187,9 @@ vi.mock("./services/executionApi", () => ({
 vi.mock("./hooks/useQuestions", () => ({
   useQuestions: () => ({
     questions: mockQuestions !== null ? mockQuestions : defaultQuestions,
-    isLoading: false,
-    error: null,
+    isLoading: mockIsLoading,
+    error: mockError,
+    refetch: vi.fn(),
   }),
 }));
 
@@ -222,6 +225,8 @@ describe("App — full assessment flow", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     mockQuestions = null;
+    mockIsLoading = false;
+    mockError = null;
   });
 
   afterEach(() => {
@@ -247,6 +252,20 @@ describe("App — full assessment flow", () => {
 
       expect(screen.getByRole("button", { name: "Previous" })).toBeDisabled();
       expect(screen.getByRole("button", { name: "Next" })).toBeEnabled();
+    });
+
+    test("displays shimmer skeleton UI while questions are loading", () => {
+      mockIsLoading = true;
+      render(<App />);
+
+      expect(
+        screen.getByRole("status", { name: "Loading coding assessment" })
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          "Loading coding assessment questions and workspace from server..."
+        )
+      ).toBeInTheDocument();
     });
 
     test("navigate to next question: second question appears", () => {
@@ -386,7 +405,7 @@ describe("App — full assessment flow", () => {
     });
 
     test("preserve timer during navigation: timer continues instead of restarting", () => {
-      render(<App />);
+      render(<App isTimerActive={true} />);
 
       const timerDisplay = screen.getByLabelText("Assessment countdown timer");
       expect(timerDisplay).toHaveTextContent("30:00");
@@ -662,7 +681,7 @@ describe("App — full assessment flow", () => {
     test(
       "run is unavailable after timeout",
       () => {
-        render(<App />);
+        render(<App isTimerActive={true} />);
 
         // Advance full assessment duration (30 minutes)
         advanceSeconds(1800);
@@ -774,7 +793,7 @@ describe("App — full assessment flow", () => {
     test(
       "shortcuts do not trigger execution or submission when locked or after timeout",
       () => {
-        render(<App />);
+        render(<App isTimerActive={true} />);
 
         // Advance full duration to trigger timeout lock
         advanceSeconds(1800);
@@ -1055,7 +1074,7 @@ describe("App — full assessment flow", () => {
     test(
       "expired timer: run and submit follow the expiry rule",
       () => {
-        render(<App />);
+        render(<App isTimerActive={true} />);
 
       // Advance clock past assessment duration (30 minutes = 1800s)
       advanceSeconds(30 * 60);
@@ -1080,6 +1099,29 @@ describe("App — full assessment flow", () => {
         screen.getByRole("button", { name: "Submit solution" })
       ).toBeDisabled();
     }, 30000);
+
+    test("guarded timer: does not lock down editor or actions when isTimerActive is false", () => {
+      render(<App isTimerActive={false} />);
+
+      // Advance clock past 30 minutes
+      advanceSeconds(30 * 60);
+
+      const timerDisplay = screen.getByLabelText("Assessment countdown timer");
+      // Timer remains guarded at initial duration
+      expect(timerDisplay).toHaveTextContent("30:00");
+
+      // Time expired banner is NOT displayed
+      expect(screen.queryByText("⏳ Time has expired")).not.toBeInTheDocument();
+
+      // All action controls remain enabled
+      expect(
+        screen.getByRole("textbox", { name: "Code editor" })
+      ).not.toBeDisabled();
+      expect(screen.getByRole("button", { name: "Run code" })).not.toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Submit solution" })
+      ).not.toBeDisabled();
+    });
   });
 
   // ─── Language selection and multi-language support ──────────────────────────
@@ -1273,7 +1315,7 @@ describe("App — full assessment flow", () => {
     });
 
     test("switching languages does not reset the timer", () => {
-      render(<App />);
+      render(<App isTimerActive={true} />);
 
       const timerDisplay = screen.getByLabelText("Assessment countdown timer");
       expect(timerDisplay).toHaveTextContent("30:00");

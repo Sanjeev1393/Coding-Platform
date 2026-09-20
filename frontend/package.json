@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:run": "vitest run",
-    "prepare": "cd .. && npx --prefix frontend husky .husky"
+    "prepare": "node -e \"if (!process.env.CI && !process.env.VERCEL) { try { require('child_process').execSync('cd .. && npx --prefix frontend husky .husky', { stdio: 'inherit' }); } catch (e) {} }\""
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",

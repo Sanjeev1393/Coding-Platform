@@ -22,3 +22,29 @@ body {
     Cantarell,
     sans-serif;
 }
+
+@keyframes shimmer-gentle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.68;
+  }
+}
+
+.animate-shimmer-slow {
+  animation: shimmer-gentle 3.2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes editor-code-glow {
+  0%, 100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.65;
+  }
+}
+
+.animate-editor-code {
+  animation: editor-code-glow 4s ease-in-out infinite;
+}

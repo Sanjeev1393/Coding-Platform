@@ -132,4 +132,34 @@ describe("useAssessmentTimer", () => {
       expect(result.current.formattedTime).toBe("29:55");
     });
   });
+
+  // ─── guarded / stopped timer behaviour ────────────────────────────────
+  describe("guarded / stopped timer behaviour", () => {
+    test("does not decrement or count down when isActive is false", () => {
+      const { result } = renderHook(() =>
+        useAssessmentTimer(30 * 60, { isActive: false })
+      );
+
+      expect(result.current.formattedTime).toBe("30:00");
+      expect(result.current.isTimeUp).toBe(false);
+      expect(result.current.isUrgent).toBe(false);
+      expect(result.current.isTimerActive).toBe(false);
+
+      // Advance clock
+      advanceSeconds(30);
+
+      // Time should remain unchanged at 30:00
+      expect(result.current.formattedTime).toBe("30:00");
+      expect(result.current.isTimeUp).toBe(false);
+    });
+
+    test("never marks isTimeUp when isActive is false even if initial duration is 0", () => {
+      const { result } = renderHook(() =>
+        useAssessmentTimer(0, { isActive: false })
+      );
+
+      expect(result.current.isTimeUp).toBe(false);
+      expect(result.current.isTimerActive).toBe(false);
+    });
+  });
 });
