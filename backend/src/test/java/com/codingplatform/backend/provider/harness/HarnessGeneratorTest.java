@@ -1,4 +1,4 @@
-package com.codingplatform.backend.provider.piston.harness;
+package com.codingplatform.backend.provider.harness;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.codingplatform.backend.dto.ExecutionRequest;
 import com.codingplatform.backend.dto.FunctionParam;
 import com.codingplatform.backend.dto.FunctionSignature;
-import com.codingplatform.backend.provider.piston.dto.PistonFile;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +42,7 @@ class HarnessGeneratorTest {
                 new ExecutionRequest(
                         "java", userCode, null, signature, "numbers = [2, 7, 11, 15], target = 9");
 
-        List<PistonFile> files = generator.generateExecutionFiles(request, "Main");
+        List<SourceFile> files = generator.generateExecutionFiles(request, "Main");
 
         assertEquals(1, files.size());
         assertEquals("Main", files.get(0).name());
@@ -83,7 +82,7 @@ class HarnessGeneratorTest {
                         signature,
                         "numbers = [2, 7, 11, 15], target = 9");
 
-        List<PistonFile> files = generator.generateExecutionFiles(request, "Main");
+        List<SourceFile> files = generator.generateExecutionFiles(request, "Main");
         String mainContent = files.get(0).content();
 
         assertTrue(mainContent.contains("[3, 2, 4]\\n6"));
@@ -109,7 +108,7 @@ class HarnessGeneratorTest {
         ExecutionRequest request =
                 new ExecutionRequest("java", userCodeWithPublic, null, signature, "s = \"hello\"");
 
-        List<PistonFile> files = generator.generateExecutionFiles(request, "Main");
+        List<SourceFile> files = generator.generateExecutionFiles(request, "Main");
         String mainContent = files.get(0).content();
 
         assertTrue(mainContent.contains("class Solution"));
@@ -134,7 +133,7 @@ class HarnessGeneratorTest {
         ExecutionRequest request =
                 new ExecutionRequest("java", userCode, "custom-input", signature, "s = \"hello\"");
 
-        List<PistonFile> files = generator.generateExecutionFiles(request, "Main");
+        List<SourceFile> files = generator.generateExecutionFiles(request, "Main");
 
         assertEquals(1, files.size());
         assertEquals("Main", files.get(0).name());
@@ -166,7 +165,7 @@ class HarnessGeneratorTest {
         ExecutionRequest request =
                 new ExecutionRequest("java", userCodeWithMain, null, signature, null);
 
-        List<PistonFile> files = generator.generateExecutionFiles(request, "Main");
+        List<SourceFile> files = generator.generateExecutionFiles(request, "Main");
 
         assertEquals(1, files.size());
         assertEquals("Main", files.get(0).name());
@@ -178,7 +177,7 @@ class HarnessGeneratorTest {
         String code = "System.out.println(\"test\");";
         ExecutionRequest request = new ExecutionRequest("java", code, null);
 
-        List<PistonFile> files = generator.generateExecutionFiles(request, "Main");
+        List<SourceFile> files = generator.generateExecutionFiles(request, "Main");
 
         assertEquals(1, files.size());
         assertEquals("Main", files.get(0).name());
@@ -200,7 +199,7 @@ class HarnessGeneratorTest {
         ExecutionRequest request =
                 new ExecutionRequest("python", userCode, null, signature, "[2, 7, 11, 15]\n9");
 
-        List<PistonFile> files = generator.generateExecutionFiles(request, "main");
+        List<SourceFile> files = generator.generateExecutionFiles(request, "main");
         assertEquals(1, files.size());
         assertEquals("main", files.get(0).name());
         assertTrue(files.get(0).content().contains("sol.twoSum(arg0, arg1)"));

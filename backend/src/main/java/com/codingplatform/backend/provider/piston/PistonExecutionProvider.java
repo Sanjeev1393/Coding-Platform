@@ -4,6 +4,8 @@ import com.codingplatform.backend.dto.ExecutionRequest;
 import com.codingplatform.backend.dto.ExecutionResponse;
 import com.codingplatform.backend.dto.ExecutionStatus;
 import com.codingplatform.backend.provider.CodeExecutionProvider;
+import com.codingplatform.backend.provider.harness.HarnessGenerator;
+import com.codingplatform.backend.provider.harness.SourceFile;
 import com.codingplatform.backend.provider.piston.dto.PistonExecuteRequest;
 import com.codingplatform.backend.provider.piston.dto.PistonExecuteResponse;
 import com.codingplatform.backend.provider.piston.dto.PistonFile;
@@ -13,13 +15,22 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
-@Component
+/**
+ * Execution provider connecting to a local or containerized Piston sandbox engine.
+ *
+ * <p>Activated by default or when {@code execution.provider=piston} in application configuration.
+ * Dispatches code execution requests to Piston's {@code /api/v2/execute} endpoint and maps stage
+ * results into unified {@link ExecutionResponse} records.
+ */
+@Component("pistonExecutionProvider")
+@ConditionalOnProperty(name = "execution.provider", havingValue = "piston", matchIfMissing = true)
 public class PistonExecutionProvider implements CodeExecutionProvider {
 
     private static final Logger logger = LoggerFactory.getLogger(PistonExecutionProvider.class);
@@ -28,33 +39,23 @@ public class PistonExecutionProvider implements CodeExecutionProvider {
 
     private final RestClient restClient;
     private final PistonProperties properties;
-    private final com.codingplatform.backend.provider.piston.harness.HarnessGenerator
-            harnessGenerator;
+    private final HarnessGenerator harnessGenerator;
 
     @Autowired
-    public PistonExecutionProvider(
-            PistonProperties properties,
-            com.codingplatform.backend.provider.piston.harness.HarnessGenerator harnessGenerator) {
+    public PistonExecutionProvider(PistonProperties properties, HarnessGenerator harnessGenerator) {
         this(createRestClient(RestClient.builder(), properties), properties, harnessGenerator);
     }
 
     public PistonExecutionProvider(RestClient restClient, PistonProperties properties) {
-        this(
-                restClient,
-                properties,
-                new com.codingplatform.backend.provider.piston.harness.HarnessGenerator());
+        this(restClient, properties, new HarnessGenerator());
     }
 
     public PistonExecutionProvider(
-            RestClient restClient,
-            PistonProperties properties,
-            com.codingplatform.backend.provider.piston.harness.HarnessGenerator harnessGenerator) {
+            RestClient restClient, PistonProperties properties, HarnessGenerator harnessGenerator) {
         this.restClient = restClient;
         this.properties = properties;
         this.harnessGenerator =
-                harnessGenerator != null
-                        ? harnessGenerator
-                        : new com.codingplatform.backend.provider.piston.harness.HarnessGenerator();
+                harnessGenerator != null ? harnessGenerator : new HarnessGenerator();
     }
 
     private static RestClient createRestClient(
@@ -82,8 +83,12 @@ public class PistonExecutionProvider implements CodeExecutionProvider {
         }
 
         String stdin = request.stdin() != null ? request.stdin() : "";
-        List<PistonFile> executionFiles =
+        List<SourceFile> generatedFiles =
                 harnessGenerator.generateExecutionFiles(request, properties.fileName());
+        List<PistonFile> executionFiles =
+                generatedFiles.stream()
+                        .map(file -> new PistonFile(file.name(), file.content()))
+                        .toList();
 
         PistonExecuteRequest pistonRequest =
                 new PistonExecuteRequest(
