@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { ASSESSMENT_DURATION_SECONDS } from "./constants";
+import {
+  ASSESSMENT_DURATION_SECONDS,
+  IS_ASSESSMENT_TIMER_ACTIVE,
+} from "./constants";
 import { useQuestions } from "./hooks/useQuestions";
 import { useAssessmentTimer } from "./hooks/useAssessmentTimer";
 import { useKeyboardShortcuts } from "./hooks/useKeyboardShortcuts";
@@ -11,15 +14,18 @@ import EditorPanel from "./components/EditorPanel";
 import ConfirmDialog from "./components/ConfirmDialog";
 import StatusBanner from "./components/StatusBanner";
 import EmptyAssessment from "./components/EmptyAssessment";
+import CodingWorkspaceSkeleton from "./components/CodingWorkspaceSkeleton";
 
 /**
  * Root Application component coordinating assessment state, navigation across questions,
  * countdown timer, code execution, submission verification, and layout orchestration.
  *
+ * @param {Object} [props] - Component props
+ * @param {boolean} [props.isTimerActive=IS_ASSESSMENT_TIMER_ACTIVE] - Flag to guard assessment countdown timer
  * @returns {JSX.Element} The rendered assessment application
  */
-function App() {
-  const { questions } = useQuestions();
+function App({ isTimerActive = IS_ASSESSMENT_TIMER_ACTIVE } = {}) {
+  const { questions, isLoading, error, refetch } = useQuestions();
 
   const {
     currentQuestionIndex,
@@ -57,10 +63,11 @@ function App() {
 
   // Custom hook isolates all timer lifecycle, formatting, and urgency states
   const { formattedTime, isTimeUp, isUrgent } = useAssessmentTimer(
-    ASSESSMENT_DURATION_SECONDS
+    ASSESSMENT_DURATION_SECONDS,
+    { isActive: isTimerActive }
   );
 
-  // Derived state
+  // Derived state: locked during submission, in-flight execution, or active timer expiry
   const isLocked = isSubmitted || isRunning || isTimeUp;
 
   const handlePreviousQuestion = () => {
@@ -151,6 +158,10 @@ function App() {
     disabled: isLocked || showConfirmDialog,
   });
 
+  if (isLoading) {
+    return <CodingWorkspaceSkeleton />;
+  }
+
   return (
     <main className="flex h-full flex-col bg-slate-100 text-slate-800 overflow-hidden">
       <AssessmentHeader
@@ -170,7 +181,7 @@ function App() {
       )}
 
       {!hasQuestions ? (
-        <EmptyAssessment />
+        <EmptyAssessment error={error} onRetry={refetch} />
       ) : (
         <div className="grid flex-1 grid-cols-1 md:grid-cols-5 min-h-0 overflow-hidden">
           <QuestionPanel
