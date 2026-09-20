@@ -12,28 +12,40 @@ const EXECUTIONS_URL = "/api/v1/executions";
  * @returns {Promise<Object>} Execution response with stdout, stderr, and timings
  */
 export async function executeCode(payload) {
-  const response = await fetch(EXECUTIONS_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const response = await fetch(EXECUTIONS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-  if (!response.ok) {
-    let message = `Execution request failed with status ${response.status}`;
+    if (!response.ok) {
+      let message = `Execution request failed with status ${response.status}`;
 
-    try {
-      const errorBody = await response.json();
-      message = errorBody.detail || errorBody.message || message;
-    } catch {
-      // The backend did not return a JSON error body.
+      try {
+        const errorBody = await response.json();
+        message = errorBody.detail || errorBody.message || message;
+      } catch (parseError) {
+        console.warn(
+          `[executionApi] Backend returned non-JSON error body (HTTP ${response.status}). Falling back to status message.`,
+          parseError
+        );
+      }
+
+      console.error(
+        `[executionApi] executeCode request failed (HTTP ${response.status}):`,
+        message
+      );
+      throw new Error(message);
     }
 
-    throw new Error(message);
+    return await response.json();
+  } catch (error) {
+    console.error("[executionApi] executeCode encountered an error:", error);
+    throw error;
   }
-
-  return response.json();
 }
 
 const SUBMISSIONS_URL = "/api/v1/executions/submit";
@@ -49,27 +61,39 @@ const SUBMISSIONS_URL = "/api/v1/executions/submit";
  * @returns {Promise<Object>} EvaluationResult containing verdict, passed count, and test cases
  */
 export async function submitCode(payload) {
-  const response = await fetch(SUBMISSIONS_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const response = await fetch(SUBMISSIONS_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
 
-  if (!response.ok) {
-    let message = `Submission request failed with status ${response.status}`;
+    if (!response.ok) {
+      let message = `Submission request failed with status ${response.status}`;
 
-    try {
-      const errorBody = await response.json();
-      message = errorBody.detail || errorBody.message || message;
-    } catch {
-      // The backend did not return a JSON error body.
+      try {
+        const errorBody = await response.json();
+        message = errorBody.detail || errorBody.message || message;
+      } catch (parseError) {
+        console.warn(
+          `[executionApi] Backend returned non-JSON error body (HTTP ${response.status}). Falling back to status message.`,
+          parseError
+        );
+      }
+
+      console.error(
+        `[executionApi] submitCode request failed (HTTP ${response.status}):`,
+        message
+      );
+      throw new Error(message);
     }
 
-    throw new Error(message);
+    return await response.json();
+  } catch (error) {
+    console.error("[executionApi] submitCode encountered an error:", error);
+    throw error;
   }
-
-  return response.json();
 }
 

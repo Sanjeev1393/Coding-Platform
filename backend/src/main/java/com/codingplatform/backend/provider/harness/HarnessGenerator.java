@@ -1,20 +1,57 @@
-package com.codingplatform.backend.provider.piston.harness;
+package com.codingplatform.backend.provider.harness;
 
 import com.codingplatform.backend.dto.ExecutionRequest;
 import com.codingplatform.backend.dto.FunctionParam;
 import com.codingplatform.backend.dto.FunctionSignature;
-import com.codingplatform.backend.provider.piston.dto.PistonFile;
 import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
+/**
+ * Generates an executable test harness (driver wrapper) around raw candidate solution code.
+ *
+ * <h3>Architectural Purpose & Mental Model:</h3>
+ *
+ * <p>In competitive coding platforms like LeetCode or HackerRank, candidates do not write a full
+ * standalone program with a {@code main} method and manual I/O parsing. Instead, they implement a
+ * clean algorithmic method inside a class (e.g., {@code Solution.twoSum(int[] nums, int target)}).
+ *
+ * <p>Compilers and runtimes (both Piston and JDoodle) require a runnable entry point (e.g., {@code
+ * public static void main(String[] args)}) to execute.
+ *
+ * <p>The {@code HarnessGenerator} bridges this gap by:
+ *
+ * <ol>
+ *   <li>Detecting whether the submission already contains a custom entry point (e.g. {@code main}).
+ *   <li>If not, dynamically synthesizing a <b>Driver Program</b> that:
+ *       <ul>
+ *         <li>Extracts and parses raw input strings (arrays, ints, strings, booleans).
+ *         <li>Instantiates the candidate's {@code Solution} class.
+ *         <li>Calls the target method with parsed arguments.
+ *         <li>Prints the returned result to standard output ({@code stdout}) in a normalized
+ *             format.
+ *       </ul>
+ *   <li>Combining the driver code with the candidate's solution before sending it to the sandbox.
+ * </ol>
+ *
+ * <p>Supported languages: Java, Python, and JavaScript.
+ */
 @Component
 public class HarnessGenerator {
 
-    public List<PistonFile> generateExecutionFiles(
+    /**
+     * Generates the final execution files, wrapping the solution with a driver harness if needed.
+     *
+     * @param request the candidate execution request containing source code, language, and function
+     *     signature
+     * @param defaultFileName default file name expected by the compiler (e.g., "Main")
+     * @return list of {@link SourceFile} containing the generated code ready for sandbox
+     *     compilation
+     */
+    public List<SourceFile> generateExecutionFiles(
             ExecutionRequest request, String defaultFileName) {
         if (request == null || request.sourceCode() == null) {
-            return List.of(new PistonFile(defaultFileName, ""));
+            return List.of(new SourceFile(defaultFileName, ""));
         }
 
         String language = request.language() != null ? request.language().toLowerCase() : "";
@@ -25,7 +62,7 @@ public class HarnessGenerator {
                 || signature.functionName() == null
                 || signature.functionName().isBlank()
                 || hasCustomMainMethod(request.sourceCode(), language)) {
-            return List.of(new PistonFile(defaultFileName, request.sourceCode()));
+            return List.of(new SourceFile(defaultFileName, request.sourceCode()));
         }
 
         String effectiveInput;
@@ -43,24 +80,25 @@ public class HarnessGenerator {
                             .replaceAll("\\bpublic\\s+class\\s+Solution\\b", "class Solution");
             String driverCode = generateJavaDriver(signature, effectiveInput);
             String fullCode = driverCode + "\n\n" + sanitizedUserCode;
-            return List.of(new PistonFile(defaultFileName, fullCode));
+            return List.of(new SourceFile(defaultFileName, fullCode));
         }
 
         if ("python".equals(language)) {
             String driverCode = generatePythonDriver(signature, effectiveInput);
             String fullCode = request.sourceCode() + "\n\n" + driverCode;
-            return List.of(new PistonFile(defaultFileName, fullCode));
+            return List.of(new SourceFile(defaultFileName, fullCode));
         }
 
         if ("javascript".equals(language)) {
             String driverCode = generateJavaScriptDriver(signature, effectiveInput);
             String fullCode = request.sourceCode() + "\n\n" + driverCode;
-            return List.of(new PistonFile(defaultFileName, fullCode));
+            return List.of(new SourceFile(defaultFileName, fullCode));
         }
 
-        return List.of(new PistonFile(defaultFileName, request.sourceCode()));
+        return List.of(new SourceFile(defaultFileName, request.sourceCode()));
     }
 
+    /** Checks if the user code already contains an entry point to prevent driver collision. */
     private boolean hasCustomMainMethod(String sourceCode, String language) {
         if ("java".equals(language)) {
             return sourceCode.contains("public static void main");
@@ -72,6 +110,10 @@ public class HarnessGenerator {
         return false;
     }
 
+    /**
+     * Synthesizes a Java {@code public class Main} containing input parsing, Solution
+     * instantiation, method invocation, and System.out formatting.
+     */
     private String generateJavaDriver(FunctionSignature signature, String effectiveInput) {
         StringBuilder sb = new StringBuilder();
         sb.append("import java.util.*;\n");

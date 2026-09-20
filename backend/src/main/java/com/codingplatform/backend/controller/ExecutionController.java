@@ -7,6 +7,8 @@ import com.codingplatform.backend.dto.SubmissionRequest;
 import com.codingplatform.backend.service.EvaluationService;
 import com.codingplatform.backend.service.ExecutionService;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -29,6 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/executions")
 public class ExecutionController {
 
+    private static final Logger logger = LoggerFactory.getLogger(ExecutionController.class);
+
     private final ExecutionService executionService;
     private final EvaluationService evaluationService;
 
@@ -46,8 +50,19 @@ public class ExecutionController {
      */
     @PostMapping
     public ResponseEntity<ExecutionResponse> execute(@Valid @RequestBody ExecutionRequest request) {
-        ExecutionResponse response = executionService.execute(request);
-        return ResponseEntity.ok(response);
+        logger.info("Received execution request: language={}", request.language());
+        try {
+            ExecutionResponse response = executionService.execute(request);
+            logger.info(
+                    "Execution completed: status={}, timeMs={}, memoryKb={}",
+                    response.status(),
+                    response.executionTimeMs(),
+                    response.memoryKb());
+            return ResponseEntity.ok(response);
+        } catch (Exception ex) {
+            logger.error("Unexpected error during code execution: {}", ex.getMessage(), ex);
+            throw ex;
+        }
     }
 
     /**
@@ -58,7 +73,26 @@ public class ExecutionController {
      */
     @PostMapping("/submit")
     public ResponseEntity<EvaluationResult> submit(@Valid @RequestBody SubmissionRequest request) {
-        EvaluationResult result = evaluationService.evaluate(request);
-        return ResponseEntity.ok(result);
+        logger.info(
+                "Received submission request: questionId={}, language={}",
+                request.questionId(),
+                request.language());
+        try {
+            EvaluationResult result = evaluationService.evaluate(request);
+            logger.info(
+                    "Submission evaluated: status={}, passed={}/{}, totalTimeMs={}",
+                    result.status(),
+                    result.passed(),
+                    result.total(),
+                    result.totalExecutionTimeMs());
+            return ResponseEntity.ok(result);
+        } catch (Exception ex) {
+            logger.error(
+                    "Unexpected error during solution evaluation for question '{}': {}",
+                    request.questionId(),
+                    ex.getMessage(),
+                    ex);
+            throw ex;
+        }
     }
 }
