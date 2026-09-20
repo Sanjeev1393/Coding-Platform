@@ -1,4 +1,6 @@
-const QUESTIONS_URL = "/api/v1/questions";
+import { getApiUrl } from "./apiConfig";
+
+const QUESTIONS_URL = getApiUrl("/api/v1/questions");
 
 /**
  * Fetches assessment questions dynamically from the backend REST API (`GET /api/v1/questions`).

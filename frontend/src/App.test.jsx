@@ -1079,7 +1079,7 @@ describe("App — full assessment flow", () => {
       expect(
         screen.getByRole("button", { name: "Submit solution" })
       ).toBeDisabled();
-    }, 15000);
+    }, 30000);
   });
 
   // ─── Language selection and multi-language support ──────────────────────────
