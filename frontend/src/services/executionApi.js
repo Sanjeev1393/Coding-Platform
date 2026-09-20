@@ -1,4 +1,6 @@
-const EXECUTIONS_URL = "/api/v1/executions";
+import { getApiUrl } from "./apiConfig";
+
+const EXECUTIONS_URL = getApiUrl("/api/v1/executions");
 
 /**
  * Sends code to the backend for single execution (Run Code).
@@ -48,7 +50,7 @@ export async function executeCode(payload) {
   }
 }
 
-const SUBMISSIONS_URL = "/api/v1/executions/submit";
+const SUBMISSIONS_URL = getApiUrl("/api/v1/executions/submit");
 
 /**
  * Submits solution code to the backend judging engine (Submit Solution).

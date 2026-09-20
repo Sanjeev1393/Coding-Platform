@@ -47,10 +47,12 @@ RUN chown -R spring:spring /app
 
 USER spring
 
+# Default port documentation (Render overrides this at runtime via $PORT)
 EXPOSE 8080
 
-# Configure health check against Spring Boot Actuator health endpoint
+# Configure health check against application health endpoint
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
-    CMD curl -f http://localhost:8080/actuator/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8080}/api/health || exit 1
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# Limit JVM heap usage to 75% of container RAM to prevent OOM kills on memory-constrained hosting tiers
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
