@@ -1,6 +1,6 @@
 # Coding Assessment Platform
 
-> **Tech Stack at a glance:** **React** · **Vite** · **Tailwind CSS** · **Monaco Editor** · **Java 21** · **Spring Boot** · **Spring RestClient** · **Piston** · **Docker** · **Vitest** · **React Testing Library** · **JUnit** · **Mockito**
+> **Tech Stack at a glance:** **React** · **Vite** · **Tailwind CSS** · **Monaco Editor** · **Java 21** · **Spring Boot** · **Spring RestClient** · **Piston** · **JDoodle API** · **Docker** · **Vitest** · **React Testing Library** · **JUnit** · **Mockito**
 
 A full-stack coding assessment platform for conducting timed programming tests and automatically executing candidate code — designed to replace a manual, error-prone hiring process with an interactive coding environment.
 
@@ -71,7 +71,7 @@ This does not scale. It is slow when a single evaluator reviews ten candidates. 
 
 **This platform aims to replace that manual process** by providing an interactive code editor, real-time sandboxed code execution, automated test-case evaluation, and structured assessment reporting.
 
-> **Project status:** Active development. Dynamic question loading via REST API, automated multi-language evaluation (Java, Python, JavaScript, C++), sequential test-case progression, and hidden benchmark verification are working end-to-end through **Spring Boot**, **Docker**, and **Piston**.
+> **Project status:** Active development. Dynamic question loading via REST API, automated multi-language evaluation (Java, Python, JavaScript), sequential test-case progression, and hidden benchmark verification are working end-to-end through **Spring Boot**, with pluggable code execution: local **Piston (Docker)** for offline development and cloud-based **JDoodle API** for production deployments.
 
 ---
 
@@ -232,12 +232,15 @@ Infrastructure failures (e.g. Piston unavailable) are returned as safe applicati
 
 | Technology | Purpose |
 |---|---|
-| **Piston** | High-performance code execution engine |
-| **Docker Desktop** | Containerized runtime environment |
+| **Piston** | Local high-performance code execution engine (Docker) |
+| **JDoodle API** | Cloud-managed compilation and sandboxed execution REST API |
+| **Docker Desktop** | Containerized runtime environment for local Piston |
 | **Docker Compose** | Multi-container orchestration for Piston |
-| **Java 15.0.2 Piston runtime** | Sandboxed execution runtime for candidate Java solutions |
+| **Java 15.0.2 Piston runtime** | Sandboxed execution runtime for candidate Java solutions in Piston |
 
-> **Runtime Distinction:** The Spring Boot backend runs on **Java 21**, while submitted candidate code executes inside the **Piston** sandbox using the container's installed **Java 15.0.2** runtime.
+> **Dual Execution Architecture:**
+> - **Local Development:** Defaults to `execution.provider=piston`. Uses containerized Piston for unlimited, zero-cost, offline execution.
+> - **Cloud / Production:** Set `execution.provider=jdoodle`. Offloads compilation and sandboxing to JDoodle's REST API, eliminating the need to run Docker-in-Docker or heavy compilers on memory-constrained hosting tiers (e.g., Render 512MB free tier).
 
 ---
 
@@ -254,12 +257,17 @@ React UI (Vite, Port 5173)
                                           EvaluationService
                                                   |
                                                   +--> OutputComparator
-                                                  +--> CodeExecutionProvider (Piston)
+                                                  +--> CodeExecutionProvider (Interface)
                                                                 |
-                                                                v
-                                                       Piston in Docker (Port 2000)
-                                                                |
-                                                      Runtimes (Java, Python, JS, C++)
+                                        +-----------------------+-----------------------+
+                                        |                                               |
+                                        v                                               v
+                             PistonExecutionProvider                        JdoodleExecutionProvider
+                                        |                                               |
+                                        v                                               v
+                            Piston in Docker (Port 2000)                        JDoodle REST API
+                                        |                                  (api.jdoodle.com/v1/execute)
+                                    Runtimes (Java, Python, JS, C++)
 ```
 
 ### Execution & Evaluation Flows
@@ -295,10 +303,13 @@ QuestionController                 ExecutionController
 QuestionRepository                  EvaluationService / ExecutionService
         |                                  |
 InMemoryQuestionRepository          OutputComparator / CodeExecutionProvider
-                                           |
-                                    PistonExecutionProvider
-                                           |
-                                    Piston API (Docker)
+                                                   |
+                     +-----------------------------+-----------------------------+
+                     |                                                           |
+          PistonExecutionProvider                                    JdoodleExecutionProvider
+          (@ConditionalOnProperty: piston)                           (@ConditionalOnProperty: jdoodle)
+                     |                                                           |
+            Piston API (Docker)                                         JDoodle REST API
 ```
 
 ---
@@ -601,13 +612,21 @@ Typical idle baseline metrics:
 
 ## Configuration
 
-Backend Piston integration properties are defined in:
+Backend execution and provider integration properties are defined in:
 
 ```
 backend/src/main/resources/application.properties
 ```
 
 The application supports environment-variable overrides with the following defaults:
+
+### Execution Provider Selection
+
+| Environment Variable | Default Value | Description |
+|---|---|---|
+| `EXECUTION_PROVIDER` | `piston` | Active provider: `piston` (local container) or `jdoodle` (cloud REST API) |
+
+### Piston Configuration (`execution.provider=piston`)
 
 | Environment Variable | Default Value | Description |
 |---|---|---|
@@ -620,6 +639,18 @@ The application supports environment-variable overrides with the following defau
 | `PISTON_READ_TIMEOUT_MS` | `10000` | HTTP read response timeout in milliseconds |
 
 > **Timeout Relationship:** `PISTON_CONNECT_TIMEOUT_MS` (2000 ms) < `PISTON_RUN_TIMEOUT_MS` (6000 ms) < `PISTON_READ_TIMEOUT_MS` (10000 ms). The backend read timeout must exceed Piston's execution timeout so Spring Boot does not terminate the connection while the runner is still legitimately executing. Additionally, ensure the Piston container's server limits (`PISTON_RUN_TIMEOUT` and `PISTON_RUN_CPU_TIME` in `docker-compose.yaml`) are set to at least 10000 ms so Piston does not reject requests exceeding its default 3000 ms ceiling.
+
+### JDoodle Configuration (`execution.provider=jdoodle`)
+
+| Environment Variable | Default Value | Description |
+|---|---|---|
+| `JDOODLE_BASE_URL` | `https://api.jdoodle.com` | Base URL of JDoodle REST API |
+| `JDOODLE_CLIENT_ID` | `""` | JDoodle API Client ID |
+| `JDOODLE_CLIENT_SECRET` | `""` | JDoodle API Client Secret |
+| `JDOODLE_DEFAULT_LANGUAGE` | `java` | Default language target for JDoodle |
+| `JDOODLE_DEFAULT_VERSION_INDEX` | `4` | Version index in JDoodle (e.g., `4` for JDK 17 / modern) |
+| `JDOODLE_CONNECT_TIMEOUT_MS` | `5000` | HTTP connection timeout in milliseconds |
+| `JDOODLE_READ_TIMEOUT_MS` | `15000` | HTTP read response timeout in milliseconds |
 
 ---
 
