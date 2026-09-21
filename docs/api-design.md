@@ -55,7 +55,7 @@ flowchart TD
 
     subgraph LocalDev ["💻 Local Development"]
         A["1. Code Change<br/>(Controller / DTO)"]:::localNode
-        B["2. Run Script<br/>(generate-openapi.ps1)"]:::localNode
+        B["2. Run Generator<br/>(node generate-openapi.mjs)"]:::localNode
         C["3. Commit Spec<br/>(docs/openapi.json)"]:::localNode
         A --> B --> C
     end

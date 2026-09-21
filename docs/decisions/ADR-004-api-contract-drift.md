@@ -59,7 +59,7 @@ As the platform evolves, backend APIs change (new endpoints, modified request/re
 **How:**
 1. Code remains the source of truth, enriched with declarative Springdoc/Swagger annotations (`@Schema`, `@Operation`, `@ApiResponse`).
 2. The generated spec is checked into version control at `docs/openapi.json`.
-3. A local regeneration script (`scripts/generate-openapi.ps1` / `.sh`) produces the JSON artifact.
+3. A local regeneration script (`node scripts/generate-openapi.mjs`) produces the JSON artifact across all operating systems.
 4. CI runs a **Contract Drift Guard**: it spins up the backend, fetches `/v3/api-docs`, and executes `git diff --exit-code docs/openapi.json`. If code changed without updating the spec, CI fails.
 5. Mintlify consumes `docs/openapi.json` to generate interactive API Reference docs automatically.
 
@@ -87,7 +87,7 @@ When CI detects that `docs/openapi.json` has drifted from code, there are two ch
 
 ## Consequences Accepted
 
-- Backend developers must run `.\scripts\generate-openapi.ps1` whenever they change an endpoint or DTO before pushing.
+- Backend developers must run `node scripts/generate-openapi.mjs` whenever they change an endpoint or DTO before pushing.
 - GitHub Actions CI takes an extra ~1–2 minutes to start the backend and verify contract alignment.
 - Local machines must have a running backend instance to execute the regeneration script.
 

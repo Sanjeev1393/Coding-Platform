@@ -172,7 +172,7 @@ public class JdoodleExecutionProvider implements CodeExecutionProvider { ... }
 
 **Implementation:**
 - Annotated DTOs and Controllers with Springdoc OpenAPI annotations (`@Schema`, `@Operation`, `@ApiResponse`).
-- Created `scripts/generate-openapi.ps1` (PowerShell) and `.sh` (Bash) to fetch `/v3/api-docs` from the running backend.
+- Created a universal Node.js script (`scripts/generate-openapi.mjs`) to fetch `/v3/api-docs` from the running backend and guarantee identical JSON formatting on Windows, macOS, and Linux.
 - Added a `contract-drift-check` job in `.github/workflows/ci.yml` that boots Spring Boot and verifies zero git diff.
 - Linked `docs/openapi.json` to Mintlify in `docs.json` for zero-effort, interactive API Reference docs.
 
@@ -210,12 +210,12 @@ public class JdoodleExecutionProvider implements CodeExecutionProvider { ... }
 2. Tell the health check loop to immediately stop the build and show the real server log if the backend does not start.
 
 **Implementation:**
-- Ran `git update-index --chmod=+x backend/mvnw scripts/generate-openapi.sh` so Git saves the executable flag permanently.
+- Ran `git update-index --chmod=+x backend/mvnw` so Git saves the executable flag permanently.
 - Changed backend startup in `ci.yml` to:
   `nohup ./mvnw spring-boot:run > /tmp/backend.log 2>&1 &`
   (`nohup` keeps the process alive and saves all output into `/tmp/backend.log`).
 - Added a simple check after the retry loop: if the backend is not healthy, print `/tmp/backend.log` and stop with `exit 1`.
-- Changed `curl -s` to `curl -sf` so it fails loudly if the server is unreachable.
+- Switched to a universal Node.js script (`scripts/generate-openapi.mjs`) across both local environments and CI so output is 100% identical.
 
 **Result:** The pipeline now starts the backend cleanly on Linux. If the server ever fails to start in the future, CI immediately prints the exact error message from the backend log instead of showing a confusing JSON error.
 

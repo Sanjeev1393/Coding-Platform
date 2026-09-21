@@ -703,30 +703,16 @@ SWAGGER_ENABLED=true
 ### Regenerating the Spec
 
 Whenever a controller or DTO changes, regenerate and commit the spec before pushing.
-Use the dedicated script — it handles the health check and file write automatically:
+Use the universal Node script — it works on Windows, macOS, and Linux:
 
-**Windows (PowerShell):**
-```powershell
-# 1. Start the backend (if not already running)
-cd backend; .\mvnw.cmd spring-boot:run
-
-# 2. In a separate terminal, run the script from the project root
-.\scripts\generate-openapi.ps1
-
-# 3. Commit
-git add docs/openapi.json
-git commit -m "docs: regenerate openapi.json"
-```
-
-**macOS / Linux:**
 ```bash
 # 1. Start the backend (if not already running)
-cd backend && ./mvnw spring-boot:run
+cd backend && ./mvnw spring-boot:run     # On Windows: .\mvnw.cmd spring-boot:run
 
-# 2. In a separate terminal, run the script from the project root
-./scripts/generate-openapi.sh
+# 2. In a separate terminal at the project root, run the generator:
+node scripts/generate-openapi.mjs
 
-# 3. Commit
+# 3. Commit the updated contract
 git add docs/openapi.json
 git commit -m "docs: regenerate openapi.json"
 ```

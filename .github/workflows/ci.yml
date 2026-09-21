@@ -56,6 +56,11 @@ jobs:
           cache: maven
           cache-dependency-path: backend/pom.xml
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Make Maven wrapper executable
         run: chmod +x backend/mvnw
 
@@ -64,34 +69,12 @@ jobs:
         # Start in background with nohup so it stays alive; redirect logs to /tmp/backend.log
         run: nohup ./mvnw spring-boot:run > /tmp/backend.log 2>&1 &
 
-      - name: Wait for backend to be healthy
-        run: |
-          echo "Waiting for backend to start..."
-          healthy=false
-          for i in {1..60}; do
-            if curl -sf http://localhost:8080/actuator/health > /dev/null 2>&1; then
-              echo "✅ Backend is healthy (attempt $i)"
-              healthy=true
-              break
-            fi
-            echo "  attempt $i/60 — retrying in 2s..."
-            sleep 2
-          done
-
-          if [ "$healthy" != "true" ]; then
-            echo "❌ Backend failed to start within timeout. Showing backend logs:"
-            cat /tmp/backend.log || true
-            exit 1
-          fi
-
-      - name: Generate current OpenAPI spec from running server
-        run: |
-          curl -sf http://localhost:8080/v3/api-docs > /tmp/raw-spec.json
-          python3 -m json.tool --indent 2 /tmp/raw-spec.json > /tmp/openapi-current.json
+      - name: Wait for backend and generate OpenAPI spec
+        run: node scripts/generate-openapi.mjs
 
       - name: Check for contract drift
         run: |
-          if ! diff -q docs/openapi.json /tmp/openapi-current.json > /dev/null 2>&1; then
+          if ! git diff --exit-code docs/openapi.json; then
             echo ""
             echo "╔══════════════════════════════════════════════════════════════╗"
             echo "║           ❌  OpenAPI Contract Drift Detected                ║"
@@ -105,17 +88,12 @@ jobs:
             echo "║                                                              ║"
             echo "║  Run the generation script and commit the result:           ║"
             echo "║                                                              ║"
-            echo "║  Windows (PowerShell):                                       ║"
-            echo "║    .\scripts\generate-openapi.ps1                           ║"
-            echo "║                                                              ║"
-            echo "║  macOS / Linux:                                              ║"
-            echo "║    ./scripts/generate-openapi.sh                            ║"
+            echo "║    node scripts/generate-openapi.mjs                         ║"
+            echo "║    git add docs/openapi.json                                 ║"
+            echo "║    git commit -m 'docs: regenerate openapi.json'             ║"
             echo "║                                                              ║"
             echo "╚══════════════════════════════════════════════════════════════╝"
             echo ""
-            echo "── Diff (committed vs current) ──────────────────────────────"
-            diff docs/openapi.json /tmp/openapi-current.json || true
-            echo "─────────────────────────────────────────────────────────────"
             exit 1
           else
             echo "✅ OpenAPI contract is up to date — no drift detected."
