@@ -154,4 +154,81 @@ public class JdoodleExecutionProvider implements CodeExecutionProvider { ... }
 - Why does `curl` work but the browser request fails?
 
 ---
+
+## 2026-09 — API Contract Drift & Schema Governance
+
+**Problem:** Backend developers modify endpoints or DTO field names without notifying the frontend team, resulting in silent runtime breakage in production.
+
+**Why it happened:** In code-first Spring Boot applications, changing a DTO field (e.g., renaming `sourceCode` to `code` or changing a validation constraint) compiles and passes backend unit tests, but immediately breaks frontend HTTP payloads. Without an automated guard, API documentation and client expectations drift apart from actual backend logic.
+
+**Investigation:** Looked into how high-velocity engineering teams prevent breaking contract changes. Analyzed spec-first (handcrafting OpenAPI YAML before code) versus code-first (annotating DTOs with Springdoc `@Schema` and generating specs). Spec-first had too much friction for our velocity, while pure code-first had no CI enforcement.
+
+**Options considered:**
+1. *Spec-first with code generation:* High overhead; generated stubs often fight with domain logic.
+2. *Dynamic Swagger UI only (no versioned file):* Zero maintenance, but no PR diffs and no CI validation.
+3. *Code-first with versioned `openapi.json` & CI drift guard:* Full code velocity + strict CI contract enforcement.
+
+**Decision:** Option 3. Check `docs/openapi.json` into Git. Run a CI check (`git diff --exit-code docs/openapi.json`) that fails the build if the code changes without an accompanying updated spec. Reject CI auto-commits to ensure developers consciously review contract diffs before pushing.
+
+**Implementation:**
+- Annotated DTOs and Controllers with Springdoc OpenAPI annotations (`@Schema`, `@Operation`, `@ApiResponse`).
+- Created a universal Node.js script (`scripts/generate-openapi.mjs`) to fetch `/v3/api-docs` from the running backend and guarantee identical JSON formatting on Windows, macOS, and Linux.
+- Added a `contract-drift-check` job in `.github/workflows/ci.yml` that boots Spring Boot and verifies zero git diff.
+- Linked `docs/openapi.json` to Mintlify in `docs.json` for zero-effort, interactive API Reference docs.
+
+**Result:** Any unintentional or breaking API modification triggers a red CI build during pull request checks. Frontend developers can review the exact JSON contract diff right in GitHub PRs before code merges.
+
+**What I learned:** API contracts are public promises. Automated drift detection shifts contract testing left—catching breaking changes at code-review time rather than in production integration tests. Furthermore, making CI *fail* rather than *auto-commit* enforces developer intentionality.
+
+**At scale:** At large companies, this pattern evolves into automated consumer-driven contract testing (e.g., Pact) or automated TypeScript client generation directly from the committed OpenAPI spec via tools like `openapi-typescript` in the frontend build pipeline.
+
+**Interview questions:**
+- How do you prevent breaking API changes between frontend and backend in a team?
+- What is API contract drift, and how can CI detect it?
+- Why should CI fail on uncommitted generated artifacts instead of auto-committing them?
+- What are the trade-offs between code-first and spec-first API design?
+
+---
+
+## 2026-09 — Windows to Linux CI: File Permissions & Silent Failures
+
+**Problem:** The CI pipeline crashed with a confusing error message: `Expecting value: line 1 column 1 (char 0)`. It looked like a broken JSON file, but the real cause was completely different.
+
+**Why it happened:** A chain of three small issues created one misleading error:
+1. **Windows vs. Linux file permissions:** Windows does not care about Linux execution permissions (`+x`). When we created or committed files from Windows, Git saved `./mvnw` with default read-only permissions (`100644`). When GitHub Actions ran on Ubuntu Linux, it failed with `./mvnw: Permission denied`.
+2. **Background process died quietly:** Because `./mvnw spring-boot:run &` was run with `&` in the background, Linux printed the error, but the CI step finished anyway without stopping the build.
+3. **The loop failed silently:** The health check loop tried to reach `localhost:8080` 40 times. When it failed all 40 times, the loop just ended normally without telling CI that it failed.
+4. **The crash:** The next step ran `curl` against the dead server, received completely empty text (`""`), and passed it to Python. Python crashed trying to read empty text as JSON.
+
+**Investigation:** 
+- Checked the Git index with `git ls-files -s backend/mvnw`. It showed mode `100644` (not executable) instead of `100755` (executable).
+- Realized that `curl -s` (silent mode) was hiding the connection error.
+- Saw that the health check loop did not have an `exit 1` when it ran out of retries.
+
+**Decision:** 
+1. Fix the permissions directly in Git so Linux always knows the file is executable.
+2. Tell the health check loop to immediately stop the build and show the real server log if the backend does not start.
+
+**Implementation:**
+- Ran `git update-index --chmod=+x backend/mvnw` so Git saves the executable flag permanently.
+- Changed backend startup in `ci.yml` to:
+  `nohup ./mvnw spring-boot:run > /tmp/backend.log 2>&1 &`
+  (`nohup` keeps the process alive and saves all output into `/tmp/backend.log`).
+- Added a simple check after the retry loop: if the backend is not healthy, print `/tmp/backend.log` and stop with `exit 1`.
+- Switched to a universal Node.js script (`scripts/generate-openapi.mjs`) across both local environments and CI so output is 100% identical.
+
+**Result:** The pipeline now starts the backend cleanly on Linux. If the server ever fails to start in the future, CI immediately prints the exact error message from the backend log instead of showing a confusing JSON error.
+
+**What I learned:** 
+- **The real bug is usually earlier:** When a later step crashes with empty data, look at the earlier step that was supposed to produce that data.
+- **Cross-platform awareness:** Developing on Windows and deploying on Linux (like GitHub Actions or Docker) means you must check executable permissions in Git.
+- **Fail loudly:** Never let a retry loop finish quietly without checking if it actually succeeded.
+
+**Interview questions:**
+- Why do scripts from Windows sometimes fail with `Permission denied` on Linux CI?
+- How does Git store and track file permissions?
+- How do you safely start a background service and wait for it in a CI/CD pipeline?
+- What does `nohup` do and why is it useful in automated scripts?
+
+---
 *Add new entries here as you encounter problems and make decisions.*

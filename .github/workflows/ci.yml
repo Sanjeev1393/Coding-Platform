@@ -1,4 +1,4 @@
-name: CI - Lint & Tests
+name: CI - Lint, Tests & Contract Check
 
 on:
   push:
@@ -7,8 +7,9 @@ on:
     branches: [ main, master ]
 
 jobs:
-  verify:
-    name: Lint and Run Tests
+  # ─── Job 1: Frontend Lint, Tests & Build ─────────────────────────────────────
+  frontend-verify:
+    name: Frontend — Lint, Tests & Build
     runs-on: ubuntu-latest
 
     defaults:
@@ -37,3 +38,63 @@ jobs:
 
       - name: Verify production build
         run: npm run build
+
+  # ─── Job 2: OpenAPI Contract Drift Check ─────────────────────────────────────
+  openapi-contract-check:
+    name: Backend — OpenAPI Contract Drift Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Make Maven wrapper executable
+        run: chmod +x backend/mvnw
+
+      - name: Start Spring Boot backend
+        working-directory: backend
+        # Start in background with nohup so it stays alive; redirect logs to /tmp/backend.log
+        run: nohup ./mvnw spring-boot:run > /tmp/backend.log 2>&1 &
+
+      - name: Wait for backend and generate OpenAPI spec
+        run: node scripts/generate-openapi.mjs
+
+      - name: Check for contract drift
+        run: |
+          if ! git diff --exit-code docs/openapi.json; then
+            echo ""
+            echo "╔══════════════════════════════════════════════════════════════╗"
+            echo "║           ❌  OpenAPI Contract Drift Detected                ║"
+            echo "╠══════════════════════════════════════════════════════════════╣"
+            echo "║  docs/openapi.json is out of sync with the running API.     ║"
+            echo "║                                                              ║"
+            echo "║  This means a Controller or DTO was changed but the         ║"
+            echo "║  committed spec was not regenerated.                         ║"
+            echo "║                                                              ║"
+            echo "║  Fix locally and commit before pushing:                     ║"
+            echo "║                                                              ║"
+            echo "║  Run the generation script and commit the result:           ║"
+            echo "║                                                              ║"
+            echo "║    node scripts/generate-openapi.mjs                         ║"
+            echo "║    git add docs/openapi.json                                 ║"
+            echo "║    git commit -m 'docs: regenerate openapi.json'             ║"
+            echo "║                                                              ║"
+            echo "╚══════════════════════════════════════════════════════════════╝"
+            echo ""
+            exit 1
+          else
+            echo "✅ OpenAPI contract is up to date — no drift detected."
+          fi

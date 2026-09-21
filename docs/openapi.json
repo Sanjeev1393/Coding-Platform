@@ -1,0 +1,601 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Coding Platform API",
+    "description": "REST API for the Coding Platform — an online judge that allows candidates to write, run, and submit code solutions against automated test suites.\n\n**Key capabilities:**\n- Run code against a single input (experimentation mode)\n- Submit a full solution for judging against visible + hidden tests\n",
+    "contact": {
+      "name": "Coding Platform",
+      "url": "https://github.com/Sanjeev1393/Coding-Platform"
+    },
+    "license": {
+      "name": "MIT License",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "version": "v1.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local development server"
+    },
+    {
+      "url": "https://your-service.onrender.com",
+      "description": "Production server (Render)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Execution API",
+      "description": "Endpoints for running code against a single input and submitting solutions for full judging"
+    },
+    {
+      "name": "Questions API",
+      "description": "Endpoints for browsing coding questions and retrieving problem details with visible test cases"
+    },
+    {
+      "name": "Health API",
+      "description": "Liveness and readiness health check endpoints"
+    }
+  ],
+  "paths": {
+    "/api/v1/executions": {
+      "post": {
+        "tags": [
+          "Execution API"
+        ],
+        "summary": "Run Code",
+        "description": "Executes user-submitted code against a single input for experimentation (the **Run** button).\n\n**Note:** Execution errors like `COMPILATION_ERROR`, `RUNTIME_ERROR`, and `TIME_LIMIT_EXCEEDED`\nare returned with HTTP `200 OK` — the HTTP call itself succeeded; the domain-level outcome\nis encoded in the `status` field of the response body.\n",
+        "operationId": "execute",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExecutionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Execution completed (check `status` field for domain outcome — SUCCESS, COMPILATION_ERROR, RUNTIME_ERROR, etc.)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExecutionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request payload — language is blank/unsupported, or sourceCode is blank"
+          }
+        }
+      }
+    },
+    "/api/v1/executions/submit": {
+      "post": {
+        "tags": [
+          "Execution API"
+        ],
+        "summary": "Submit Solution",
+        "description": "Evaluates a candidate's solution against the **full test suite** (visible + hidden) for automated judging.\n\n**Anti-Cheating Design:** When a test case has `hidden: true`, the fields `input`, `expectedOutput`,\nand `actualOutput` are deliberately set to `null` in the response — the candidate can see\npass/fail but not the actual hidden test data.\n",
+        "operationId": "submit",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SubmissionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Submission evaluated (check `status` field — SUCCESS, WRONG_ANSWER, COMPILATION_ERROR, etc.)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvaluationResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request payload — questionId, language, or sourceCode is missing/invalid"
+          },
+          "404": {
+            "description": "Question not found for the provided questionId"
+          }
+        }
+      }
+    },
+    "/api/v1/questions": {
+      "get": {
+        "tags": [
+          "Questions API"
+        ],
+        "summary": "List all questions",
+        "description": "Returns all available coding problems with their metadata, starter code templates, and visible (non-hidden) test cases. Hidden test cases are strictly filtered out.",
+        "operationId": "getAllQuestions",
+        "responses": {
+          "200": {
+            "description": "Successfully retrieved the list of questions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QuestionResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/questions/{id}": {
+      "get": {
+        "tags": [
+          "Questions API"
+        ],
+        "summary": "Get question by ID",
+        "description": "Returns full problem details for a single question — including description, function signature, starter codes, and visible test cases. Returns 404 if the question ID does not exist.",
+        "operationId": "getQuestionById",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Question identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "two-sum"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Question found and returned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No question found with the given ID"
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "tags": [
+          "Health API"
+        ],
+        "summary": "Health check",
+        "description": "Returns the current health status of the service. Used by Render and monitoring systems to determine if the container is alive.",
+        "operationId": "health",
+        "responses": {
+          "200": {
+            "description": "Service is healthy and running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "example": {
+                    "status": "UP",
+                    "service": "coding-platform-backend"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ExecutionRequest": {
+        "type": "object",
+        "description": "Request payload for running user code against a single input",
+        "properties": {
+          "language": {
+            "type": "string",
+            "description": "Programming language of the submission",
+            "enum": [
+              "java",
+              "javascript",
+              "python"
+            ],
+            "example": "java",
+            "minLength": 1,
+            "pattern": "java|javascript|python"
+          },
+          "sourceCode": {
+            "type": "string",
+            "description": "The user's complete source code",
+            "example": "class Solution { public int[] twoSum(int[] nums, int target) { return new int[]{0,1}; } }",
+            "minLength": 1
+          },
+          "stdin": {
+            "type": "string",
+            "description": "Raw standard input passed to the program (newline-separated)",
+            "example": 2
+          },
+          "signature": {
+            "$ref": "#/components/schemas/FunctionSignature",
+            "description": "Optional function signature used by the platform harness for structured execution"
+          },
+          "sampleInput": {
+            "type": "string",
+            "description": "Optional pre-formatted sample input string"
+          }
+        },
+        "required": [
+          "language",
+          "sourceCode"
+        ]
+      },
+      "FunctionParam": {
+        "type": "object",
+        "description": "A single named parameter of a function signature",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Parameter name",
+            "example": "nums"
+          },
+          "type": {
+            "type": "string",
+            "description": "Parameter type",
+            "example": "int[]"
+          }
+        }
+      },
+      "FunctionSignature": {
+        "type": "object",
+        "description": "Describes the function signature the candidate must implement",
+        "properties": {
+          "functionName": {
+            "type": "string",
+            "description": "Name of the function to implement",
+            "example": "twoSum"
+          },
+          "params": {
+            "type": "array",
+            "description": "Ordered list of function parameters",
+            "items": {
+              "$ref": "#/components/schemas/FunctionParam"
+            }
+          },
+          "returnType": {
+            "type": "string",
+            "description": "Return type of the function",
+            "example": "int[]"
+          }
+        }
+      },
+      "ExecutionResponse": {
+        "type": "object",
+        "description": "Result of running user code against a single input",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Outcome status of the execution",
+            "enum": [
+              "SUCCESS",
+              "WRONG_ANSWER",
+              "COMPILATION_ERROR",
+              "RUNTIME_ERROR",
+              "TIME_LIMIT_EXCEEDED",
+              "INTERNAL_ERROR"
+            ]
+          },
+          "stdout": {
+            "type": "string",
+            "description": "Standard output produced by the program",
+            "example": [
+              0,
+              1
+            ]
+          },
+          "stderr": {
+            "type": "string",
+            "description": "Standard error output produced by the program"
+          },
+          "compilationOutput": {
+            "type": "string",
+            "description": "Compiler output — populated when status is COMPILATION_ERROR"
+          },
+          "executionTimeMs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Wall-clock execution time in milliseconds",
+            "example": 420
+          },
+          "memoryKb": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Peak memory consumed during execution in kilobytes",
+            "example": 10240
+          }
+        }
+      },
+      "SubmissionRequest": {
+        "type": "object",
+        "description": "Request payload for submitting a candidate solution to the judging engine",
+        "properties": {
+          "questionId": {
+            "type": "string",
+            "description": "The question identifier being solved",
+            "example": "two-sum",
+            "minLength": 1
+          },
+          "language": {
+            "type": "string",
+            "description": "Programming language of the submission",
+            "enum": [
+              "java",
+              "javascript",
+              "python"
+            ],
+            "example": "java",
+            "minLength": 1,
+            "pattern": "java|javascript|python"
+          },
+          "sourceCode": {
+            "type": "string",
+            "description": "The candidate's complete source code to evaluate",
+            "example": "class Solution { public int[] twoSum(int[] nums, int target) { return new int[]{0,1}; } }",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "language",
+          "questionId",
+          "sourceCode"
+        ]
+      },
+      "EvaluationResult": {
+        "type": "object",
+        "description": "Aggregate evaluation result after judging a submitted solution",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "Overall verdict of the submission",
+            "enum": [
+              "SUCCESS",
+              "WRONG_ANSWER",
+              "COMPILATION_ERROR",
+              "RUNTIME_ERROR",
+              "TIME_LIMIT_EXCEEDED",
+              "INTERNAL_ERROR"
+            ]
+          },
+          "passed": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Number of test cases that passed",
+            "example": 5
+          },
+          "total": {
+            "type": "integer",
+            "format": "int32",
+            "description": "Total number of test cases evaluated",
+            "example": 5
+          },
+          "totalExecutionTimeMs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Cumulative wall-clock execution time across all test cases in milliseconds",
+            "example": 2100
+          },
+          "maxMemoryKb": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Peak memory consumption observed across all evaluated test cases in kilobytes",
+            "example": 10240
+          },
+          "errorMessage": {
+            "type": "string",
+            "description": "Compiler output or runtime error details when an error occurred; null on success"
+          },
+          "testCases": {
+            "type": "array",
+            "description": "Granular outcome for each evaluated test case",
+            "items": {
+              "$ref": "#/components/schemas/TestCaseResult"
+            }
+          }
+        }
+      },
+      "TestCaseResult": {
+        "type": "object",
+        "description": "Evaluation outcome of a single test case",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Test case identifier",
+            "example": "tc-1"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable display name",
+            "example": "Basic case"
+          },
+          "status": {
+            "type": "string",
+            "description": "Outcome of this test case",
+            "enum": [
+              "PASSED",
+              "FAILED",
+              "RUNTIME_ERROR",
+              "TIME_LIMIT_EXCEEDED"
+            ],
+            "example": "PASSED"
+          },
+          "hidden": {
+            "type": "boolean",
+            "description": "Whether this is a hidden test case. When true, input/expectedOutput/actualOutput are null."
+          },
+          "input": {
+            "type": "string",
+            "description": "Raw input for this test case — null when hidden=true",
+            "example": [
+              2,
+              7,
+              11,
+              15
+            ]
+          },
+          "expectedOutput": {
+            "type": "string",
+            "description": "Expected output — null when hidden=true",
+            "example": [
+              0,
+              1
+            ]
+          },
+          "actualOutput": {
+            "type": "string",
+            "description": "Actual stdout from the candidate's solution — null when hidden=true",
+            "example": [
+              0,
+              1
+            ]
+          },
+          "executionTimeMs": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Time taken to execute this individual test case in milliseconds",
+            "example": 420
+          }
+        }
+      },
+      "QuestionResponse": {
+        "type": "object",
+        "description": "Question metadata, starter code templates, and visible test cases exposed to the candidate. Hidden test cases are filtered out.",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique question identifier",
+            "example": "two-sum"
+          },
+          "title": {
+            "type": "string",
+            "description": "Human-readable question title",
+            "example": "Two Sum"
+          },
+          "difficulty": {
+            "type": "string",
+            "description": "Difficulty level",
+            "enum": [
+              "Easy",
+              "Medium",
+              "Hard"
+            ],
+            "example": "Easy"
+          },
+          "description": {
+            "type": "string",
+            "description": "Full problem description and constraints"
+          },
+          "signature": {
+            "$ref": "#/components/schemas/FunctionSignature",
+            "description": "Function signature the candidate must implement"
+          },
+          "sampleInput": {
+            "type": "string",
+            "description": "Sample input string",
+            "example": 2
+          },
+          "sampleOutput": {
+            "type": "string",
+            "description": "Sample output string",
+            "example": [
+              0,
+              1
+            ]
+          },
+          "starterCodes": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Map of language identifier to starter code template",
+            "example": {
+              "java": "class Solution { ... }"
+            }
+          },
+          "testCases": {
+            "$ref": "#/components/schemas/TestCasesContainer",
+            "description": "Sanitized test cases container (visible only)"
+          }
+        }
+      },
+      "TestCasesContainer": {
+        "type": "object",
+        "description": "Container for client-safe (visible-only) test cases",
+        "properties": {
+          "visible": {
+            "type": "array",
+            "description": "List of visible test cases shown to the candidate",
+            "items": {
+              "$ref": "#/components/schemas/VisibleTestCaseDto"
+            }
+          }
+        }
+      },
+      "VisibleTestCaseDto": {
+        "type": "object",
+        "description": "A single visible test case exposed to the candidate",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Test case identifier",
+            "example": "tc-1"
+          },
+          "name": {
+            "type": "string",
+            "description": "Human-readable display name",
+            "example": "Example 1"
+          },
+          "inputs": {
+            "type": "object",
+            "additionalProperties": {},
+            "description": "Map of named input parameters"
+          },
+          "rawInput": {
+            "type": "string",
+            "description": "Unparsed raw input string",
+            "example": 2
+          },
+          "input": {
+            "type": "string",
+            "description": "Standard input formatted for client-side execution",
+            "example": 2
+          },
+          "expectedOutput": {
+            "type": "string",
+            "description": "Expected output string",
+            "example": [
+              0,
+              1
+            ]
+          },
+          "explanation": {
+            "type": "string",
+            "description": "Optional explanation of the test case"
+          }
+        }
+      }
+    }
+  }
+}

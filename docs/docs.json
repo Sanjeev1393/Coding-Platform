@@ -12,6 +12,7 @@
     "dark": "/logo/dark.svg"
   },
   "favicon": "/favicon.svg",
+  "openapi": "openapi.json",
   "navbar": {
     "links": [
       {
@@ -46,7 +47,8 @@
         "group": "Architecture Decisions",
         "pages": [
           "decisions/ADR-001-execution-service",
-          "decisions/ADR-003-jdoodle-vs-piston"
+          "decisions/ADR-003-jdoodle-vs-piston",
+          "decisions/ADR-004-api-contract-drift"
         ]
       },
       {
@@ -67,6 +69,16 @@
         "group": "System Design",
         "pages": [
           "system-design/evolution"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "pages": [
+          "api-reference/endpoint/post-api-v1-executions",
+          "api-reference/endpoint/post-api-v1-executions-submit",
+          "api-reference/endpoint/get-api-v1-questions",
+          "api-reference/endpoint/get-api-v1-questions-id",
+          "api-reference/endpoint/get-api-health"
         ]
       }
     ]
