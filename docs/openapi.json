@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Coding Platform API",
-    "description": "REST API for the Coding Platform — an online judge that allows candidates to write, run, and submit code solutions against automated test suites.\n\n**Key capabilities:**\n- Browse coding questions with their visible test cases\n- Run code against a single input (experimentation mode)\n- Submit a full solution for judging against visible + hidden tests\n",
+    "description": "REST API for the Coding Platform — an online judge that allows candidates to write, run, and submit code solutions against automated test suites.\n\n**Key capabilities:**\n- Run code against a single input (experimentation mode)\n- Submit a full solution for judging against visible + hidden tests\n",
     "contact": {
       "name": "Coding Platform",
       "url": "https://github.com/Sanjeev1393/Coding-Platform"
