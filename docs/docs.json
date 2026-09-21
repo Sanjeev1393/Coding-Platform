@@ -12,7 +12,9 @@
     "dark": "/logo/dark.svg"
   },
   "favicon": "/favicon.svg",
-  "openapi": "openapi.json",
+  "api": {
+    "openapi": "openapi.json"
+  },
   "navbar": {
     "links": [
       {
@@ -73,13 +75,7 @@
       },
       {
         "group": "API Reference",
-        "pages": [
-          "api-reference/endpoint/post-api-v1-executions",
-          "api-reference/endpoint/post-api-v1-executions-submit",
-          "api-reference/endpoint/get-api-v1-questions",
-          "api-reference/endpoint/get-api-v1-questions-id",
-          "api-reference/endpoint/get-api-health"
-        ]
+        "openapi": "openapi.json"
       }
     ]
   }
