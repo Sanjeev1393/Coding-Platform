@@ -189,4 +189,46 @@ public class JdoodleExecutionProvider implements CodeExecutionProvider { ... }
 - What are the trade-offs between code-first and spec-first API design?
 
 ---
+
+## 2026-09 — Windows to Linux CI: File Permissions & Silent Failures
+
+**Problem:** The CI pipeline crashed with a confusing error message: `Expecting value: line 1 column 1 (char 0)`. It looked like a broken JSON file, but the real cause was completely different.
+
+**Why it happened:** A chain of three small issues created one misleading error:
+1. **Windows vs. Linux file permissions:** Windows does not care about Linux execution permissions (`+x`). When we created or committed files from Windows, Git saved `./mvnw` with default read-only permissions (`100644`). When GitHub Actions ran on Ubuntu Linux, it failed with `./mvnw: Permission denied`.
+2. **Background process died quietly:** Because `./mvnw spring-boot:run &` was run with `&` in the background, Linux printed the error, but the CI step finished anyway without stopping the build.
+3. **The loop failed silently:** The health check loop tried to reach `localhost:8080` 40 times. When it failed all 40 times, the loop just ended normally without telling CI that it failed.
+4. **The crash:** The next step ran `curl` against the dead server, received completely empty text (`""`), and passed it to Python. Python crashed trying to read empty text as JSON.
+
+**Investigation:** 
+- Checked the Git index with `git ls-files -s backend/mvnw`. It showed mode `100644` (not executable) instead of `100755` (executable).
+- Realized that `curl -s` (silent mode) was hiding the connection error.
+- Saw that the health check loop did not have an `exit 1` when it ran out of retries.
+
+**Decision:** 
+1. Fix the permissions directly in Git so Linux always knows the file is executable.
+2. Tell the health check loop to immediately stop the build and show the real server log if the backend does not start.
+
+**Implementation:**
+- Ran `git update-index --chmod=+x backend/mvnw scripts/generate-openapi.sh` so Git saves the executable flag permanently.
+- Changed backend startup in `ci.yml` to:
+  `nohup ./mvnw spring-boot:run > /tmp/backend.log 2>&1 &`
+  (`nohup` keeps the process alive and saves all output into `/tmp/backend.log`).
+- Added a simple check after the retry loop: if the backend is not healthy, print `/tmp/backend.log` and stop with `exit 1`.
+- Changed `curl -s` to `curl -sf` so it fails loudly if the server is unreachable.
+
+**Result:** The pipeline now starts the backend cleanly on Linux. If the server ever fails to start in the future, CI immediately prints the exact error message from the backend log instead of showing a confusing JSON error.
+
+**What I learned:** 
+- **The real bug is usually earlier:** When a later step crashes with empty data, look at the earlier step that was supposed to produce that data.
+- **Cross-platform awareness:** Developing on Windows and deploying on Linux (like GitHub Actions or Docker) means you must check executable permissions in Git.
+- **Fail loudly:** Never let a retry loop finish quietly without checking if it actually succeeded.
+
+**Interview questions:**
+- Why do scripts from Windows sometimes fail with `Permission denied` on Linux CI?
+- How does Git store and track file permissions?
+- How do you safely start a background service and wait for it in a CI/CD pipeline?
+- What does `nohup` do and why is it useful in automated scripts?
+
+---
 *Add new entries here as you encounter problems and make decisions.*
