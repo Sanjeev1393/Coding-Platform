@@ -1,4 +1,4 @@
-name: CI - Lint & Tests
+name: CI - Lint, Tests & Contract Check
 
 on:
   push:
@@ -7,8 +7,9 @@ on:
     branches: [ main, master ]
 
 jobs:
-  verify:
-    name: Lint and Run Tests
+  # ─── Job 1: Frontend Lint, Tests & Build ─────────────────────────────────────
+  frontend-verify:
+    name: Frontend — Lint, Tests & Build
     runs-on: ubuntu-latest
 
     defaults:
@@ -37,3 +38,73 @@ jobs:
 
       - name: Verify production build
         run: npm run build
+
+  # ─── Job 2: OpenAPI Contract Drift Check ─────────────────────────────────────
+  openapi-contract-check:
+    name: Backend — OpenAPI Contract Drift Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Start Spring Boot backend
+        working-directory: backend
+        # Start in background; SWAGGER_ENABLED must be true (default) for spec generation
+        run: ./mvnw spring-boot:run &
+
+      - name: Wait for backend to be healthy
+        run: |
+          echo "Waiting for backend to start..."
+          for i in {1..40}; do
+            if curl -sf http://localhost:8080/actuator/health > /dev/null 2>&1; then
+              echo "✅ Backend is healthy"
+              break
+            fi
+            echo "  attempt $i/40 — retrying in 3s..."
+            sleep 3
+          done
+
+      - name: Generate current OpenAPI spec from running server
+        run: |
+          curl -s http://localhost:8080/v3/api-docs | \
+            python3 -m json.tool --indent 2 > /tmp/openapi-current.json
+
+      - name: Check for contract drift
+        run: |
+          if ! diff -q docs/openapi.json /tmp/openapi-current.json > /dev/null 2>&1; then
+            echo ""
+            echo "╔══════════════════════════════════════════════════════════════╗"
+            echo "║           ❌  OpenAPI Contract Drift Detected                ║"
+            echo "╠══════════════════════════════════════════════════════════════╣"
+            echo "║  docs/openapi.json is out of sync with the running API.     ║"
+            echo "║                                                              ║"
+            echo "║  This means a Controller or DTO was changed but the         ║"
+            echo "║  committed spec was not regenerated.                         ║"
+            echo "║                                                              ║"
+            echo "║  Fix locally and commit before pushing:                     ║"
+            echo "║                                                              ║"
+            echo "║  Run the generation script and commit the result:           ║"
+            echo "║                                                              ║"
+            echo "║  Windows (PowerShell):                                       ║"
+            echo "║    .\scripts\generate-openapi.ps1                           ║"
+            echo "║                                                              ║"
+            echo "║  macOS / Linux:                                              ║"
+            echo "║    ./scripts/generate-openapi.sh                            ║"
+            echo "║                                                              ║"
+            echo "╚══════════════════════════════════════════════════════════════╝"
+            echo ""
+            echo "── Diff (committed vs current) ──────────────────────────────"
+            diff docs/openapi.json /tmp/openapi-current.json || true
+            echo "─────────────────────────────────────────────────────────────"
+            exit 1
+          else
+            echo "✅ OpenAPI contract is up to date — no drift detected."
+          fi

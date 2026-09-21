@@ -154,4 +154,39 @@ public class JdoodleExecutionProvider implements CodeExecutionProvider { ... }
 - Why does `curl` work but the browser request fails?
 
 ---
+
+## 2026-09 — API Contract Drift & Schema Governance
+
+**Problem:** Backend developers modify endpoints or DTO field names without notifying the frontend team, resulting in silent runtime breakage in production.
+
+**Why it happened:** In code-first Spring Boot applications, changing a DTO field (e.g., renaming `sourceCode` to `code` or changing a validation constraint) compiles and passes backend unit tests, but immediately breaks frontend HTTP payloads. Without an automated guard, API documentation and client expectations drift apart from actual backend logic.
+
+**Investigation:** Looked into how high-velocity engineering teams prevent breaking contract changes. Analyzed spec-first (handcrafting OpenAPI YAML before code) versus code-first (annotating DTOs with Springdoc `@Schema` and generating specs). Spec-first had too much friction for our velocity, while pure code-first had no CI enforcement.
+
+**Options considered:**
+1. *Spec-first with code generation:* High overhead; generated stubs often fight with domain logic.
+2. *Dynamic Swagger UI only (no versioned file):* Zero maintenance, but no PR diffs and no CI validation.
+3. *Code-first with versioned `openapi.json` & CI drift guard:* Full code velocity + strict CI contract enforcement.
+
+**Decision:** Option 3. Check `docs/openapi.json` into Git. Run a CI check (`git diff --exit-code docs/openapi.json`) that fails the build if the code changes without an accompanying updated spec. Reject CI auto-commits to ensure developers consciously review contract diffs before pushing.
+
+**Implementation:**
+- Annotated DTOs and Controllers with Springdoc OpenAPI annotations (`@Schema`, `@Operation`, `@ApiResponse`).
+- Created `scripts/generate-openapi.ps1` (PowerShell) and `.sh` (Bash) to fetch `/v3/api-docs` from the running backend.
+- Added a `contract-drift-check` job in `.github/workflows/ci.yml` that boots Spring Boot and verifies zero git diff.
+- Linked `docs/openapi.json` to Mintlify in `docs.json` for zero-effort, interactive API Reference docs.
+
+**Result:** Any unintentional or breaking API modification triggers a red CI build during pull request checks. Frontend developers can review the exact JSON contract diff right in GitHub PRs before code merges.
+
+**What I learned:** API contracts are public promises. Automated drift detection shifts contract testing left—catching breaking changes at code-review time rather than in production integration tests. Furthermore, making CI *fail* rather than *auto-commit* enforces developer intentionality.
+
+**At scale:** At large companies, this pattern evolves into automated consumer-driven contract testing (e.g., Pact) or automated TypeScript client generation directly from the committed OpenAPI spec via tools like `openapi-typescript` in the frontend build pipeline.
+
+**Interview questions:**
+- How do you prevent breaking API changes between frontend and backend in a team?
+- What is API contract drift, and how can CI detect it?
+- Why should CI fail on uncommitted generated artifacts instead of auto-committing them?
+- What are the trade-offs between code-first and spec-first API design?
+
+---
 *Add new entries here as you encounter problems and make decisions.*

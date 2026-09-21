@@ -5,7 +5,80 @@ description: "REST API endpoints, request/response contracts, status codes, and 
 
 # API Design
 
-## Base URL
+## 🚀 Interactive API Explorer (Swagger UI)
+
+The backend ships with **Swagger UI** — an interactive browser-based explorer where you can read documentation, inspect schemas, and execute real HTTP requests without leaving the browser.
+
+| Resource | URL |
+|---|---|
+| **Swagger UI** | [`http://localhost:8080/swagger-ui.html`](http://localhost:8080/swagger-ui.html) |
+| **OpenAPI JSON spec** | [`http://localhost:8080/v3/api-docs`](http://localhost:8080/v3/api-docs) |
+
+### How to Test in Swagger UI
+
+1. **Start the backend**
+   ```bash
+   cd backend
+   ./mvnw spring-boot:run
+   ```
+
+2. **Open Swagger UI** → navigate to `http://localhost:8080/swagger-ui.html`
+
+3. **Browse endpoint groups** — the sidebar shows three tag groups:
+   - **Execution API** — Run code & Submit solution
+   - **Questions API** — List and get questions
+   - **Health API** — Liveness check
+
+4. **Expand an endpoint** — click on any endpoint card (e.g. `POST /api/v1/executions`)
+
+5. **Click "Try it out"** — this enables editing the request body (already active by default)
+
+6. **Edit the JSON payload** — replace the example values with your test data
+
+7. **Click "Execute"** — the UI sends the real HTTP request to `localhost:8080`
+
+8. **Inspect the response** — the response body, HTTP status code, and equivalent `curl` command all appear below
+
+> **Tip:** The OpenAPI JSON spec at `/v3/api-docs` can be imported into Postman or Insomnia for offline testing.
+
+---
+
+## 🔄 API Contract Lifecycle & Drift Guard
+
+To prevent silent breaking changes between the backend and frontend, our API contract follows a strict **code-first with CI drift enforcement** workflow:
+
+```mermaid
+flowchart TD
+    classDef localNode fill:#6366f115,stroke:#6366f1,stroke-width:2px;
+    classDef ciNode fill:#ef444415,stroke:#ef4444,stroke-width:2px;
+    classDef passNode fill:#10b98115,stroke:#10b981,stroke-width:2px;
+
+    subgraph LocalDev ["💻 Local Development"]
+        A["1. Code Change<br/>(Controller / DTO)"]:::localNode
+        B["2. Run Script<br/>(generate-openapi.ps1)"]:::localNode
+        C["3. Commit Spec<br/>(docs/openapi.json)"]:::localNode
+        A --> B --> C
+    end
+
+    subgraph GitHubCI ["⚙️ GitHub Actions CI"]
+        D{"4. Contract Drift Guard<br/>(git diff --exit-code)"}:::ciNode
+    end
+
+    subgraph ProductionDocs ["🌐 Mintlify Documentation"]
+        E["5. Live API Reference<br/>(Interactive Docs & Schemas)"]:::passNode
+    end
+
+    C -->|"git push"| D
+    D -->|"✅ Diff == 0 (Pass)"| E
+    D -.->|"❌ Diff != 0 (Fail)"| F["Reject PR<br/>Developer must regenerate locally"]:::ciNode
+```
+
+### Why we do this:
+1. **Frontend-Backend Synchronization:** When a DTO field name, type, or validation rule changes, the change is visible immediately in the GitHub Pull Request diff under `docs/openapi.json`.
+2. **Fail-Fast CI Guard:** If a backend engineer changes an API signature but forgets to update `docs/openapi.json`, CI fails the build with a clear error instruction. CI deliberately does *not* auto-commit changes—forcing developers to review contract modifications before pushing.
+3. **Automated Documentation:** Mintlify reads `docs/openapi.json` directly to power the live, interactive API Reference pages without manual documentation writing.
+
+---
 
 | Environment | Base URL |
 |---|---|

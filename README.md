@@ -46,6 +46,7 @@ A full-stack coding assessment platform for conducting timed programming tests a
 - [Resource Usage & Monitoring](#resource-usage--monitoring)
 - [Troubleshooting](#troubleshooting)
 - [Configuration](#configuration)
+- [API Documentation](#api-documentation)
 - [Running Tests](#running-tests)
   - [Frontend tests](#frontend-tests)
   - [Backend tests](#backend-tests)
@@ -225,6 +226,7 @@ Infrastructure failures (e.g. Piston unavailable) are returned as safe applicati
 | **Spring Validation** | DTO request validation (`@NotBlank`, `@Pattern`) |
 | **Spring Boot Actuator** | Application health and operational metrics |
 | **Spring RestClient** | Synchronous HTTP communication with Piston |
+| **SpringDoc OpenAPI** | Auto-generated OpenAPI 3.1 spec + Swagger UI (`/swagger-ui.html`) |
 | **Maven Wrapper** | Reproducible builds without pre-installed Maven |
 | **JUnit 5 + Mockito** | Backend test suite and mock infrastructure |
 
@@ -400,6 +402,9 @@ Coding-Platform/
 │   ├── Dockerfile                              # Multi-stage build (Temurin JDK 21 -> JRE 21)
 │   ├── .dockerignore                           # Backend build exclusions
 │   ├── pom.xml
+│
+├── docs/                                   # Project documentation (Mintlify)
+│   ├── openapi.json                        # Versioned OpenAPI 3.1 spec (auto-generated)
 │   └── mvnw.cmd
 │
 ├── compose.yaml                        # Root Docker Compose multi-service orchestration
@@ -651,6 +656,82 @@ The application supports environment-variable overrides with the following defau
 | `JDOODLE_DEFAULT_VERSION_INDEX` | `4` | Version index in JDoodle (e.g., `4` for JDK 17 / modern) |
 | `JDOODLE_CONNECT_TIMEOUT_MS` | `5000` | HTTP connection timeout in milliseconds |
 | `JDOODLE_READ_TIMEOUT_MS` | `15000` | HTTP read response timeout in milliseconds |
+
+---
+
+## API Documentation
+
+The backend ships with **SpringDoc OpenAPI 3.1** — an interactive Swagger UI and a machine-readable OpenAPI spec auto-generated at startup from controller and DTO annotations.
+
+### Local Development
+
+| Resource | URL |
+|---|---|
+| **Swagger UI** (interactive) | [`http://localhost:8080/swagger-ui.html`](http://localhost:8080/swagger-ui.html) |
+| **OpenAPI JSON spec** | [`http://localhost:8080/v3/api-docs`](http://localhost:8080/v3/api-docs) |
+| **Committed spec snapshot** | [`docs/openapi.json`](./docs/openapi.json) |
+
+### Using the API Without Running the Backend
+
+The committed `docs/openapi.json` is a versioned snapshot of the full API contract. Import it into your API client without running the backend:
+
+**Postman:**
+1. Open Postman → **Import** → select `docs/openapi.json`
+2. A full collection of all 5 endpoints is created automatically with example request bodies
+
+**Insomnia:**
+1. Open Insomnia → **Create** → **Import** → select `docs/openapi.json`
+
+**Swagger Editor (online, no install):**
+1. Open [editor.swagger.io](https://editor.swagger.io)
+2. Paste the contents of `docs/openapi.json`
+
+### Production (Render)
+
+Swagger UI and `/v3/api-docs` are **disabled in production** by design — the API endpoints are not yet protected by authentication, so exposing an interactive explorer publicly would be premature.
+
+To disable, set this environment variable in the Render dashboard:
+```
+SWAGGER_ENABLED=false
+```
+
+To temporarily re-enable for debugging (without a code change or redeploy):
+```
+SWAGGER_ENABLED=true
+```
+
+### Regenerating the Spec
+
+Whenever a controller or DTO changes, regenerate and commit the spec before pushing.
+Use the dedicated script — it handles the health check and file write automatically:
+
+**Windows (PowerShell):**
+```powershell
+# 1. Start the backend (if not already running)
+cd backend; .\mvnw.cmd spring-boot:run
+
+# 2. In a separate terminal, run the script from the project root
+.\scripts\generate-openapi.ps1
+
+# 3. Commit
+git add docs/openapi.json
+git commit -m "docs: regenerate openapi.json"
+```
+
+**macOS / Linux:**
+```bash
+# 1. Start the backend (if not already running)
+cd backend && ./mvnw spring-boot:run
+
+# 2. In a separate terminal, run the script from the project root
+./scripts/generate-openapi.sh
+
+# 3. Commit
+git add docs/openapi.json
+git commit -m "docs: regenerate openapi.json"
+```
+
+> **CI enforcement:** The `openapi-contract-check` job in GitHub Actions will **fail the build** if `docs/openapi.json` is out of sync with the running API — ensuring the committed spec always reflects the actual implementation.
 
 ---
 
